@@ -1,21 +1,21 @@
-:root {
+﻿:root {
   color-scheme: light;
-  --bg: #eef4ff;
-  --bg-strong: #dbe7ff;
-  --surface: rgba(255, 255, 255, 0.78);
+  --bg: #f5efe8;
+  --bg-soft: #fff8f2;
+  --surface: rgba(255, 255, 255, 0.9);
   --surface-strong: #ffffff;
-  --text: #0f172a;
-  --muted: #5b6475;
-  --line: rgba(15, 23, 42, 0.08);
-  --primary: #155dfc;
-  --primary-strong: #0b4bd9;
-  --primary-soft: rgba(21, 93, 252, 0.1);
-  --success: #0f9d58;
-  --warning: #b45309;
-  --danger: #b91c1c;
-  --shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
-  --radius: 24px;
-  --radius-sm: 16px;
+  --text: #1c1b1f;
+  --muted: #6b6670;
+  --line: rgba(44, 20, 25, 0.1);
+  --primary: #a71d3f;
+  --primary-strong: #7f112d;
+  --primary-soft: rgba(167, 29, 63, 0.1);
+  --green: #0f4d3d;
+  --gold: #f4c542;
+  --success: #0f7b4d;
+  --warning: #ab6700;
+  --shadow: 0 22px 60px rgba(54, 18, 28, 0.12);
+  --radius: 26px;
 }
 
 * {
@@ -29,13 +29,13 @@ body {
 }
 
 body {
-  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at top left, #d8e8ff 0%, transparent 32%),
-    radial-gradient(circle at bottom right, #dcecff 0%, transparent 36%),
-    linear-gradient(180deg, var(--bg) 0%, #f8fbff 100%);
+  font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
   color: var(--text);
   line-height: 1.45;
+  background:
+    radial-gradient(circle at top left, rgba(167, 29, 63, 0.14) 0%, transparent 34%),
+    radial-gradient(circle at right 18%, rgba(15, 77, 61, 0.12) 0%, transparent 30%),
+    linear-gradient(180deg, #fffdfb 0%, var(--bg) 100%);
 }
 
 button,
@@ -50,27 +50,26 @@ button {
 
 .bg-orb {
   position: fixed;
-  inset: auto;
   border-radius: 999px;
-  filter: blur(28px);
-  opacity: 0.65;
+  filter: blur(32px);
+  opacity: 0.45;
   pointer-events: none;
 }
 
 .orb-a {
-  width: 220px;
-  height: 220px;
-  top: -40px;
+  width: 260px;
+  height: 260px;
+  top: -70px;
   right: -60px;
-  background: rgba(21, 93, 252, 0.16);
+  background: rgba(167, 29, 63, 0.22);
 }
 
 .orb-b {
-  width: 260px;
-  height: 260px;
+  width: 240px;
+  height: 240px;
   bottom: 8vh;
-  left: -90px;
-  background: rgba(15, 157, 88, 0.12);
+  left: -80px;
+  background: rgba(15, 77, 61, 0.16);
 }
 
 .shell {
@@ -84,15 +83,77 @@ button {
 .card {
   background: var(--surface);
   backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.76);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
 }
 
-.hero {
-  padding: 22px 20px 20px;
+.brand-hero {
+  padding: 18px;
   margin-top: 8px;
+  background:
+    linear-gradient(135deg, rgba(167, 29, 63, 0.94) 0%, rgba(127, 17, 45, 0.94) 60%, rgba(15, 77, 61, 0.96) 100%);
+  color: #fff7f8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.2));
+}
+
+.brand-text {
+  min-width: 0;
+}
+
+.brand-name {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.brand-sub {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+}
+
+.brand-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hero-copy {
+  margin-top: 18px;
 }
 
 .eyebrow {
@@ -101,24 +162,24 @@ button {
   gap: 8px;
   padding: 7px 12px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
-  color: var(--muted);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.hero h1 {
+.hero-copy h1 {
   margin: 14px 0 8px;
   font-size: clamp(30px, 5.5vw, 48px);
   line-height: 1.05;
   letter-spacing: -0.04em;
 }
 
-.hero p {
+.hero-copy p {
   margin: 0;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.88);
   max-width: 56ch;
 }
 
@@ -132,7 +193,7 @@ button {
 .hero-metrics > div,
 .summary-tile,
 .stat-pill {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.88);
   border: 1px solid var(--line);
   border-radius: 18px;
 }
@@ -195,24 +256,25 @@ button {
 }
 
 .ghost-btn {
-  background: rgba(15, 23, 42, 0.06);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, var(--primary) 0%, #2b7cff 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, #c02d52 100%);
   color: white;
-  box-shadow: 0 14px 28px rgba(21, 93, 252, 0.22);
+  box-shadow: 0 14px 28px rgba(167, 29, 63, 0.22);
 }
 
 .secondary-btn {
-  background: rgba(21, 93, 252, 0.09);
+  background: rgba(167, 29, 63, 0.09);
   color: var(--primary-strong);
 }
 
 .tertiary-btn {
-  background: rgba(15, 23, 42, 0.06);
-  color: var(--text);
+  background: rgba(15, 77, 61, 0.08);
+  color: var(--green);
 }
 
 .form-grid {
@@ -237,15 +299,15 @@ button {
   min-height: 48px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.95);
   color: var(--text);
   padding: 0 14px;
   outline: none;
 }
 
 .form-grid input:focus {
-  border-color: rgba(21, 93, 252, 0.4);
-  box-shadow: 0 0 0 4px rgba(21, 93, 252, 0.08);
+  border-color: rgba(167, 29, 63, 0.38);
+  box-shadow: 0 0 0 4px rgba(167, 29, 63, 0.08);
 }
 
 .full {
@@ -255,8 +317,8 @@ button {
 .upload-zone {
   display: block;
   border-radius: 22px;
-  border: 1.5px dashed rgba(21, 93, 252, 0.28);
-  background: linear-gradient(180deg, rgba(21, 93, 252, 0.08), rgba(255, 255, 255, 0.72));
+  border: 1.5px dashed rgba(167, 29, 63, 0.3);
+  background: linear-gradient(180deg, rgba(167, 29, 63, 0.08), rgba(255, 255, 255, 0.8));
   padding: 18px;
   cursor: pointer;
 }
@@ -296,8 +358,8 @@ button {
   margin-top: 14px;
   padding: 14px 16px;
   border-radius: 18px;
-  border: 1px solid rgba(21, 93, 252, 0.18);
-  background: rgba(21, 93, 252, 0.08);
+  border: 1px solid rgba(167, 29, 63, 0.18);
+  background: rgba(167, 29, 63, 0.08);
 }
 
 .status-title {
@@ -321,7 +383,7 @@ button {
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .preview-item img {
@@ -341,9 +403,9 @@ button {
   margin-top: 14px;
   padding: 14px 16px;
   border-radius: 18px;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.26);
-  color: #8a4b03;
+  background: rgba(244, 197, 66, 0.14);
+  border: 1px solid rgba(244, 197, 66, 0.28);
+  color: #8a5b00;
 }
 
 .parts-list {
@@ -354,7 +416,7 @@ button {
 .part-card {
   border-radius: 22px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.9);
   padding: 16px;
 }
 
@@ -381,7 +443,7 @@ button {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(21, 93, 252, 0.1);
+  background: rgba(167, 29, 63, 0.1);
   color: var(--primary-strong);
   font-size: 12px;
   font-weight: 800;
@@ -407,7 +469,7 @@ button {
 
 .part-preview {
   white-space: pre-wrap;
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(44, 20, 25, 0.04);
   border-radius: 16px;
   padding: 12px;
   overflow: auto;
@@ -425,7 +487,7 @@ button {
     padding: 20px 20px 36px;
   }
 
-  .hero,
+  .brand-hero,
   .form-card,
   .upload-card,
   .result-card,
