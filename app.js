@@ -33,7 +33,6 @@ const els = {
   statusTitle: document.getElementById('statusTitle'),
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
-  clearAllBtn: document.getElementById('clearAllBtn'),
   exportPdfBtn: document.getElementById('exportPdfBtn'),
   messengerBanner: document.getElementById('messengerBanner')
 };
@@ -58,6 +57,28 @@ function formatDateForDisplay(dateStr) {
 
 function pad(value) {
   return String(value).padStart(2, '0');
+}
+
+function toAsciiNoMark(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+function toCompactCustomerName(text) {
+  const raw = toAsciiNoMark(text).replace(/[^a-zA-Z0-9]+/g, '');
+  return raw || 'KhachHang';
+}
+
+function getDateStamp() {
+  const source = els.assessmentDate?.value ? new Date(`${els.assessmentDate.value}T00:00:00`) : new Date();
+  if (Number.isNaN(source.getTime())) {
+    const now = new Date();
+    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  }
+  return `${source.getFullYear()}${pad(source.getMonth() + 1)}${pad(source.getDate())}`;
 }
 
 function formatBytes(bytes) {
@@ -323,9 +344,12 @@ async function compressImage(file) {
   return bestBlob;
 }
 
-function blobToFile(blob, originalName, index) {
-  const base = originalName.replace(/\.[^.]+$/, '');
-  return new File([blob], `${base}_compressed_${String(index + 1).padStart(2, '0')}.jpg`, {
+function blobToFile(blob, index) {
+  const dateStamp = getDateStamp();
+  const customer = toCompactCustomerName(els.customerName?.value || '');
+  const seq = String(index + 1).padStart(2, '0');
+  const filename = `${dateStamp}_${customer}_${seq}.jpg`;
+  return new File([blob], filename, {
     type: 'image/jpeg',
     lastModified: Date.now()
   });
@@ -828,7 +852,8 @@ async function processSelectedFiles(fileList, append = false) {
       const file = incoming[i];
       setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
       const blob = await compressImage(file);
-      compressed.push(blobToFile(blob, file.name, i));
+      const offset = append ? state.compressedFiles.length : 0;
+      compressed.push(blobToFile(blob, offset + i));
     }
 
     if (append) {
@@ -891,14 +916,6 @@ function createNewCase() {
   setStatus(true, 'Đã tạo hồ sơ mới', 'Bạn có thể nhập khách hàng tiếp theo ngay.');
 }
 
-function clearAll() {
-  document.getElementById('caseForm').reset();
-  resetFormDefaults();
-  els.caseCode.value = '';
-  clearImageData();
-  setStatus(true, 'Đã xóa toàn bộ', 'Dữ liệu hồ sơ và ảnh đã được làm trống.');
-}
-
 function initFormDefaults() {
   resetFormDefaults();
   els.caseCode.value = '';
@@ -932,13 +949,6 @@ function wireEvents() {
 
   if (els.newCaseBtn) {
     els.newCaseBtn.addEventListener('click', createNewCase);
-  }
-
-  if (els.clearAllBtn) {
-    els.clearAllBtn.addEventListener('click', () => {
-      const ok = window.confirm('Bạn muốn xóa toàn bộ hồ sơ và ảnh hiện tại?');
-      if (ok) clearAll();
-    });
   }
 
   if (els.exportPdfBtn) {

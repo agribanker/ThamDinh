@@ -130,12 +130,12 @@
     h1 { margin: 0; color: #a71d3f; font-size: 28px; }
     .sub { margin-top: 4px; color: #5f5f5f; font-size: 14px; }
     .block { margin-top: 14px; border: 1px solid #e3e3e3; border-radius: 12px; padding: 12px; }
-    .info-wrap { display: grid; grid-template-columns: 1fr 150px; gap: 12px; align-items: start; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 14px; }
-    .full { grid-column: 1 / -1; }
+    .info-wrap { display: block; }
+    .field-list { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+    .field-list li { margin: 0 0 6px; }
     .label { font-weight: 700; }
     .map-link { font-size: 12px; word-break: break-all; color: #222; }
-    .qr-side { display: grid; justify-items: center; gap: 6px; }
+    .qr-side { margin-top: 10px; display: grid; justify-items: start; gap: 6px; }
     .qr-box { width: 128px; height: 128px; border: 1px solid #d8d8d8; border-radius: 10px; overflow: hidden; background: #fff; display: grid; place-items: center; }
     .qr-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
     .qr-empty { color: #777; font-size: 11px; text-align: center; padding: 6px; }
@@ -156,15 +156,15 @@
 
     <section class="block">
       <div class="info-wrap">
-        <div class="grid">
-          <div><span class="label">Khách hàng:</span> ${escapeHtml(form.customerName || '')}</div>
-          <div><span class="label">Ngày thẩm định:</span> ${escapeHtml(toDisplayDate(form.assessmentDate) || '')}</div>
-          <div><span class="label">Địa chỉ khách hàng:</span> ${escapeHtml(form.customerAddress || '')}</div>
-          <div><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</div>
-          <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
-          <div class="full"><span class="label">Link map:</span> <span class="map-link">${escapeHtml(mapLink || '')}</span></div>
-          <div class="full"><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</div>
-        </div>
+        <ul class="field-list">
+          <li><span class="label">Khách hàng:</span> ${escapeHtml(form.customerName || '')}</li>
+          <li><span class="label">Địa chỉ khách hàng:</span> ${escapeHtml(form.customerAddress || '')}</li>
+          <li><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</li>
+          <li><span class="label">Ngày thẩm định:</span> ${escapeHtml(toDisplayDate(form.assessmentDate) || '')}</li>
+          <li><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</li>
+          <li><span class="label">Link map:</span> <span class="map-link">${escapeHtml(mapLink || '')}</span></li>
+          <li><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</li>
+        </ul>
         <div class="qr-side">
           <div class="qr-box">
             ${
