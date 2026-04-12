@@ -1,5 +1,7 @@
-const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
-const PREVIEW_LIMIT = 8;
+﻿const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
+const MAX_FILES_PER_PART = 8;
+const DIRECT_SHARE_MAX_FILES = 8;
+const DIRECT_SHARE_MAX_BYTES = 14 * 1024 * 1024;
 
 const els = {
   caseCode: document.getElementById('caseCode'),
@@ -63,6 +65,21 @@ function formatBytes(bytes) {
   return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
 }
 
+function escapeHtml(text) {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function shortenFileName(name) {
+  if (name.length <= 24) return name;
+  const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
+  return `${name.slice(0, 18)}...${ext}`;
+}
+
 function getTagFromOfficerName(name) {
   const clean = stripAccents(name);
   if (!clean) return 'USER';
@@ -101,48 +118,24 @@ function setWarning(message) {
   els.limitWarning.classList.remove('hidden');
 }
 
-function makePreviewItem(file, sizeLabel) {
-  const wrapper = document.createElement('article');
-  wrapper.className = 'preview-item';
-
-  const img = document.createElement('img');
-  img.alt = file.name;
-  img.loading = 'lazy';
-  const previewUrl = URL.createObjectURL(file);
-  state.previewUrls.push(previewUrl);
-  img.src = previewUrl;
-
-  const meta = document.createElement('div');
-  meta.className = 'preview-meta';
-  meta.innerHTML = `<strong>${escapeHtml(shortenFileName(file.name))}</strong><br>${sizeLabel}`;
-
-  wrapper.appendChild(img);
-  wrapper.appendChild(meta);
-  return wrapper;
-}
-
-function shortenFileName(name) {
-  if (name.length <= 24) return name;
-  const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
-  return `${name.slice(0, 18)}...${ext}`;
-}
-
-function escapeHtml(text) {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+function collectFormData() {
+  return {
+    caseCode: els.caseCode.value.trim(),
+    customerName: els.customerName.value.trim(),
+    assetAddress: els.assetAddress.value.trim(),
+    mapsLink: els.mapsLink.value.trim(),
+    assessmentDate: els.assessmentDate.value,
+    notes: els.notes.value.trim(),
+    recipientEmail: els.recipientEmail.value.trim(),
+    officerName: els.officerName.value.trim(),
+    officerEmail: els.officerEmail.value.trim()
+  };
 }
 
 function readFileAsImage(file) {
   if ('createImageBitmap' in window) {
-    return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => {
-      return fallbackReadFileAsImage(file);
-    });
+    return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => fallbackReadFileAsImage(file));
   }
-
   return fallbackReadFileAsImage(file);
 }
 
@@ -160,23 +153,6 @@ function fallbackReadFileAsImage(file) {
     };
     img.src = objectUrl;
   });
-}
-
-async function fileToCompressedBlob(file) {
-  const image = await readFileAsImage(file);
-  const maxEdges = [2000, 1800, 1600, 1400, 1200];
-  const qualities = [0.8, 0.78, 0.75, 0.72, 0.68];
-
-  for (let i = 0; i < maxEdges.length; i += 1) {
-    const maxEdge = maxEdges[i];
-    const quality = qualities[i];
-    const blob = await renderCompressedBlob(image, maxEdge, quality);
-    if (blob.size <= SAFE_LIMIT_BYTES / 2 || i === maxEdges.length - 1) {
-      return blob;
-    }
-  }
-
-  return renderCompressedBlob(image, 1200, 0.68);
 }
 
 function renderCompressedBlob(image, maxEdge, quality) {
@@ -216,6 +192,34 @@ function renderCompressedBlob(image, maxEdge, quality) {
   });
 }
 
+async function compressImage(file) {
+  const image = await readFileAsImage(file);
+  let maxEdge = 1920;
+  let quality = 0.8;
+
+  let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
+
+  for (let i = 0; i < 6; i += 1) {
+    const targetGood = 1.4 * 1024 * 1024;
+    if (bestBlob.size <= targetGood) {
+      break;
+    }
+
+    if (i % 2 === 0) {
+      maxEdge = Math.max(1080, Math.round(maxEdge * 0.9));
+    } else {
+      quality = Math.max(0.58, Number((quality - 0.06).toFixed(2)));
+    }
+
+    const candidate = await renderCompressedBlob(image, maxEdge, quality);
+    if (candidate.size < bestBlob.size) {
+      bestBlob = candidate;
+    }
+  }
+
+  return bestBlob;
+}
+
 function blobToFile(blob, originalName, index) {
   const base = originalName.replace(/\.[^.]+$/, '');
   return new File([blob], `${base}_compressed_${String(index + 1).padStart(2, '0')}.jpg`, {
@@ -240,7 +244,9 @@ function splitIntoParts(items, limit) {
       return;
     }
 
-    if (currentSize + item.size > limit && current.length) {
+    const willExceedSize = currentSize + item.size > limit;
+    const willExceedCount = current.length >= MAX_FILES_PER_PART;
+    if ((willExceedSize || willExceedCount) && current.length) {
       parts.push({ items: current, size: currentSize });
       current = [item];
       currentSize = item.size;
@@ -267,6 +273,7 @@ function buildMailParts(parts) {
     const subject = `[Thẩm định] ${form.caseCode} - ${form.customerName || 'Khach hang'} - P${indexLabel} - CBTD: ${
       form.officerName || 'CBTD'
     }`;
+
     const body = [
       `Mã hồ sơ: ${form.caseCode}`,
       '',
@@ -293,24 +300,18 @@ function buildMailParts(parts) {
       files: part.items.map((item) => item.file),
       subject,
       body,
-      preview: body,
-      oversize: Boolean(part.oversize)
+      oversize: Boolean(part.oversize),
+      directShareEligible: part.items.length <= DIRECT_SHARE_MAX_FILES && part.size <= DIRECT_SHARE_MAX_BYTES
     };
   });
 }
 
-function collectFormData() {
-  return {
-    caseCode: els.caseCode.value.trim(),
-    customerName: els.customerName.value.trim(),
-    assetAddress: els.assetAddress.value.trim(),
-    mapsLink: els.mapsLink.value.trim(),
-    assessmentDate: els.assessmentDate.value,
-    notes: els.notes.value.trim(),
-    recipientEmail: els.recipientEmail.value.trim(),
-    officerName: els.officerName.value.trim(),
-    officerEmail: els.officerEmail.value.trim()
-  };
+function rebuildPreparedParts() {
+  const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
+  state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES));
+  renderPreview();
+  updateSummary();
+  renderParts();
 }
 
 function updateSummary() {
@@ -322,44 +323,72 @@ function updateSummary() {
   els.compressedSize.textContent = formatBytes(compressedBytes);
   els.partCount.textContent = String(state.parts.length);
 
-  if (!state.originalFiles.length) {
+  if (!state.compressedFiles.length) {
     els.limitStatus.textContent = 'Chưa có ảnh';
     setWarning('');
     return;
   }
 
-  if (compressedBytes <= SAFE_LIMIT_BYTES) {
-    els.limitStatus.textContent = 'Đã sẵn sàng gửi 1 phần';
-    setWarning('');
+  const overSafeLimit = compressedBytes > SAFE_LIMIT_BYTES;
+  if (overSafeLimit) {
+    els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
+    setWarning(
+      'Dung lượng vượt ngưỡng gửi an toàn. Hệ thống đã chia thành nhiều phần để gửi lần lượt. Vui lòng gửi lần lượt từng phần qua ứng dụng mail trên điện thoại.'
+    );
     return;
   }
 
-  els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
-  setWarning(
-    'Dung lượng vượt ngưỡng gửi an toàn. Hệ thống đã chia thành nhiều phần để gửi lần lượt. Vui lòng gửi lần lượt từng phần qua ứng dụng mail trên điện thoại.'
-  );
+  const autoSplitByCount = state.parts.length > 1;
+  if (autoSplitByCount) {
+    els.limitStatus.textContent = `Đã chia ${state.parts.length} phần để gửi ổn định`;
+    setWarning('Hệ thống tách nhỏ theo số ảnh mỗi phần để tăng khả năng mở Gmail/Outlook thành công trên điện thoại.');
+    return;
+  }
+
+  els.limitStatus.textContent = 'Đã sẵn sàng gửi 1 phần';
+  setWarning('');
+}
+
+function makePreviewItem(file, index) {
+  const wrapper = document.createElement('article');
+  wrapper.className = 'preview-item';
+
+  const media = document.createElement('div');
+  media.className = 'preview-media';
+
+  const img = document.createElement('img');
+  img.alt = file.name;
+  img.loading = 'lazy';
+  const previewUrl = URL.createObjectURL(file);
+  state.previewUrls.push(previewUrl);
+  img.src = previewUrl;
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'preview-delete';
+  del.textContent = 'Xóa';
+  del.addEventListener('click', () => removeImageAt(index));
+
+  media.appendChild(img);
+  media.appendChild(del);
+
+  const meta = document.createElement('div');
+  meta.className = 'preview-meta';
+  meta.innerHTML = `<strong>${escapeHtml(shortenFileName(file.name))}</strong><br>${formatBytes(file.size)}`;
+
+  wrapper.appendChild(media);
+  wrapper.appendChild(meta);
+  return wrapper;
 }
 
 function renderPreview() {
   state.previewUrls.forEach((url) => URL.revokeObjectURL(url));
   state.previewUrls = [];
   els.previewGrid.innerHTML = '';
-  const previews = state.compressedFiles.slice(0, PREVIEW_LIMIT);
 
-  previews.forEach((file) => {
-    const item = makePreviewItem(file, formatBytes(file.size));
-    els.previewGrid.appendChild(item);
+  state.compressedFiles.forEach((file, index) => {
+    els.previewGrid.appendChild(makePreviewItem(file, index));
   });
-
-  if (state.compressedFiles.length > PREVIEW_LIMIT) {
-    const more = document.createElement('div');
-    more.className = 'preview-item';
-    more.style.display = 'grid';
-    more.style.placeItems = 'center';
-    more.style.minHeight = '140px';
-    more.innerHTML = `<div class="preview-meta">+ ${state.compressedFiles.length - PREVIEW_LIMIT} ảnh nữa</div>`;
-    els.previewGrid.appendChild(more);
-  }
 }
 
 function renderParts() {
@@ -392,16 +421,30 @@ function renderParts() {
     copyBtn.addEventListener('click', () => copyPartText(part));
     downloadBtn.addEventListener('click', () => downloadPart(part));
 
-    if (!canShareFiles()) {
-      shareBtn.textContent = 'Mở chia sẻ';
+    if (!part.directShareEligible) {
+      shareBtn.textContent = 'Phần còn nặng';
+      shareBtn.disabled = true;
     }
 
     els.partsList.appendChild(card);
   });
 }
 
-function canShareFiles() {
-  return Boolean(navigator.share && navigator.canShare);
+function removeImageAt(index) {
+  if (index < 0 || index >= state.compressedFiles.length) return;
+
+  state.compressedFiles.splice(index, 1);
+  if (index < state.originalFiles.length) {
+    state.originalFiles.splice(index, 1);
+  }
+
+  rebuildPreparedParts();
+  setStatus(true, 'Đã xóa 1 ảnh', 'Đã cập nhật lại dung lượng và phần gửi.');
+}
+
+function canShareFiles(files) {
+  if (!navigator.share || !navigator.canShare) return false;
+  return navigator.canShare({ files });
 }
 
 async function copyText(text) {
@@ -425,7 +468,7 @@ async function copyText(text) {
 async function copyPartText(part) {
   try {
     await copyText(`${part.subject}\n\n${part.body}`);
-    setStatus(true, 'Đã copy subject + body', 'Có thể dán vào ứng dụng mail nếu không dùng chia sẻ file trực tiếp.');
+    setStatus(true, 'Đã copy subject + body', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
   } catch (error) {
     setStatus(true, 'Không copy được', error.message || 'Trình duyệt không cho phép copy.');
   }
@@ -459,14 +502,15 @@ function downloadPart(part) {
   });
 
   downloadTextFile(`${base}_subject_body.txt`, `${part.subject}\n\n${part.body}`);
-  setStatus(
-    true,
-    'Đã tạo bộ tải dự phòng',
-    'Nếu máy không hỗ trợ chia sẻ file trực tiếp, hãy tải ảnh phần này và copy subject/body để gửi thủ công.'
-  );
+  setStatus(true, 'Đã tạo bộ tải dự phòng', 'Nếu chia sẻ trực tiếp lỗi, hãy gửi thủ công bằng ảnh đã tải + nội dung đã copy.');
 }
 
 async function sharePart(part) {
+  if (!part.directShareEligible) {
+    setStatus(true, 'Phần gửi còn nặng', 'Hãy xóa bớt ảnh để phần nhẹ hơn, hoặc dùng Tải dự phòng để gửi thủ công.');
+    return;
+  }
+
   const files = part.files.map((file, idx) =>
     new File([file], file.name || `photo_${idx + 1}.jpg`, {
       type: file.type || 'image/jpeg',
@@ -476,30 +520,25 @@ async function sharePart(part) {
 
   const shareData = {
     title: part.subject,
-    text: `${part.subject}\n\n${part.body}`
+    text: `${part.subject}\n\n${part.body}`,
+    files
   };
 
-  if (canShareFiles() && navigator.canShare({ files })) {
-    shareData.files = files;
+  if (canShareFiles(files)) {
     try {
       await navigator.share(shareData);
-      setStatus(true, `Đã mở chia sẻ phần ${part.index}/${part.totalParts}`, 'Người dùng tự chọn Gmail, Outlook hoặc Mail và bấm gửi.');
+      setStatus(true, `Đã mở chia sẻ phần ${part.index}/${part.totalParts}`, 'Chọn Gmail/Outlook/Mail rồi bấm gửi trong ứng dụng mail.');
       return;
     } catch (error) {
-      if (error && error.name === 'AbortError') {
-        setStatus(true, 'Đã hủy chia sẻ', 'Người dùng vừa đóng bảng chia sẻ.');
+      if (error?.name === 'AbortError') {
+        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
         return;
       }
-      setStatus(true, 'Chia sẻ file không khả dụng', 'Đang chuyển sang chế độ dự phòng.');
     }
   }
 
   await copyPartText(part);
-  setStatus(
-    true,
-    'Đã copy nội dung phần gửi',
-    'Nếu máy không hỗ trợ chia sẻ file trực tiếp, hãy dùng nút Tải dự phòng để tải ảnh và file nội dung.'
-  );
+  setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã copy nội dung. Tiếp theo bấm Tải dự phòng để gửi thủ công.');
 }
 
 async function processSelectedFiles(fileList) {
@@ -507,9 +546,7 @@ async function processSelectedFiles(fileList) {
     state.originalFiles = [];
     state.compressedFiles = [];
     state.parts = [];
-    renderPreview();
-    renderParts();
-    updateSummary();
+    rebuildPreparedParts();
     return;
   }
 
@@ -518,36 +555,23 @@ async function processSelectedFiles(fileList) {
 
   try {
     const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
-    state.originalFiles = files;
+    state.originalFiles = files.slice();
 
     const compressed = [];
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
-      setStatus(
-        true,
-        'Đang nén ảnh...',
-        `Đang xử lý ${i + 1}/${files.length}: ${shortenFileName(file.name)}`
-      );
-      const blob = await fileToCompressedBlob(file);
+      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${files.length}: ${shortenFileName(file.name)}`);
+      const blob = await compressImage(file);
       compressed.push(blobToFile(blob, file.name, i));
     }
 
     state.compressedFiles = compressed;
-    const payload = compressed.map((file) => ({ file, size: file.size }));
-    state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES));
-
-    renderPreview();
-    updateSummary();
-    renderParts();
+    rebuildPreparedParts();
 
     if (state.parts.length) {
-      setStatus(
-        true,
-        'Đã sẵn sàng gửi',
-        state.parts.length === 1
-          ? 'Ảnh sau nén nằm trong ngưỡng an toàn. Có thể bấm gửi phần 1.'
-          : `Dung lượng vượt ngưỡng gửi an toàn. Hệ thống đã chia thành ${state.parts.length} phần để gửi lần lượt.`
-      );
+      const statusMsg =
+        state.parts.length === 1 ? 'Ảnh đã sẵn sàng gửi.' : `Đã tách thành ${state.parts.length} phần để gửi ổn định hơn.`;
+      setStatus(true, 'Đã sẵn sàng gửi', statusMsg);
     } else {
       setStatus(false);
     }
@@ -573,10 +597,7 @@ function initFormDefaults() {
 
 function wireEvents() {
   els.regenCodeBtn.addEventListener('click', syncGeneratedCode);
-
-  els.officerName.addEventListener('input', () => {
-    syncGeneratedCode();
-  });
+  els.officerName.addEventListener('input', syncGeneratedCode);
 
   [
     els.customerName,
@@ -589,18 +610,11 @@ function wireEvents() {
     els.officerEmail
   ].forEach((input) => {
     input.addEventListener('input', () => {
-      if (input === els.officerName) {
-        syncGeneratedCode();
-      }
-      if (state.parts.length) {
-        state.parts = buildMailParts(
-          splitIntoParts(
-            state.compressedFiles.map((file) => ({ file, size: file.size })),
-            SAFE_LIMIT_BYTES
-          )
-        );
-        renderParts();
-      }
+      if (!state.compressedFiles.length) return;
+      const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
+      state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES));
+      updateSummary();
+      renderParts();
     });
   });
 

@@ -29,6 +29,6 @@ App chạy thuần static, nên chỉ cần mở URL GitHub Pages là dùng đư
 
 ## Chèn logo Agribank
 
-- Đặt file logo tại đường dẫn: `assets/agribank-logo.png`
+- Đặt file logo tại đường dẫn: `agribank-logo.png` (cùng cấp với `index.html`)
 - Kích thước khuyến nghị: `96x96` hoặc `128x128`, nền trong suốt
 - Khi chưa có file logo, app tự hiển thị icon fallback

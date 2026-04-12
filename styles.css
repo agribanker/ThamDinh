@@ -260,6 +260,12 @@ button {
   box-shadow: 0 12px 24px rgba(167, 29, 63, 0.18);
 }
 
+.primary-btn:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 .secondary-btn {
   background: rgba(167, 29, 63, 0.08);
   color: var(--primary-strong);
@@ -369,11 +375,28 @@ button {
   background: #fff;
 }
 
+.preview-media {
+  position: relative;
+}
+
 .preview-item img {
   width: 100%;
   height: 140px;
   object-fit: cover;
   display: block;
+}
+
+.preview-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .preview-meta {
