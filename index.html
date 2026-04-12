@@ -36,9 +36,6 @@
 
         <div class="hero-copy compact-hero">
           <h1>Thẩm định tài sản</h1>
-          <p>
-            Nhập thông tin, chọn ảnh, hệ thống xử lý tự động và gửi qua mail.
-          </p>
         </div>
       </header>
 
@@ -46,15 +43,13 @@
         <div class="section-head">
           <div>
             <h2>1. Thông tin hồ sơ</h2>
-            <p>Tự sinh mã hồ sơ, tối ưu cho thao tác nhanh trên điện thoại.</p>
           </div>
-          <button type="button" class="ghost-btn" id="regenCodeBtn">Đổi mã</button>
         </div>
 
         <form id="caseForm" class="form-grid" autocomplete="off">
           <label>
             <span>Mã hồ sơ</span>
-            <input id="caseCode" name="caseCode" type="text" readonly />
+            <input id="caseCode" name="caseCode" type="text" />
           </label>
           <label>
             <span>Tên khách hàng</span>
@@ -104,7 +99,6 @@
         <div class="section-head">
           <div>
             <h2>2. Chọn ảnh</h2>
-            <p>Hỗ trợ chọn nhiều ảnh cùng lúc, xem preview và dung lượng gốc ngay lập tức.</p>
           </div>
         </div>
 
@@ -147,7 +141,6 @@
         <div class="section-head">
           <div>
             <h2>3. Kết quả nén và chia phần</h2>
-            <p>Hệ thống sẽ cảnh báo khi vượt ngưỡng gửi an toàn và tự chia thành nhiều phần phù hợp.</p>
           </div>
         </div>
 
@@ -172,14 +165,13 @@
       <section class="card parts-card">
         <div class="section-head">
           <div>
-            <h2>4. Gửi từng phần</h2>
-            <p>Mỗi phần có subject và body riêng để người dùng gửi lần lượt qua ứng dụng mail.</p>
+            <h2>4. Gửi mail</h2>
           </div>
         </div>
 
         <div class="parts-list" id="partsList"></div>
         <div class="case-actions">
-          <button type="button" class="secondary-btn" id="exportPdfBtn">Xuất PDF tóm tắt</button>
+          <button type="button" class="secondary-btn" id="exportPdfBtn">Xuất PDF</button>
           <button type="button" class="secondary-btn" id="newCaseBtn">Tạo hồ sơ mới</button>
           <button type="button" class="tertiary-btn" id="clearAllBtn">Xóa toàn bộ</button>
         </div>
@@ -198,11 +190,11 @@
 
         <div class="part-actions">
           <button type="button" class="primary-btn share-btn">Mở mail để gửi</button>
-          <button type="button" class="secondary-btn copy-btn">Sao chép tiêu đề + nội dung</button>
+          <button type="button" class="secondary-btn copy-btn">Sao chép nội dung mail</button>
         </div>
 
         <details class="part-details">
-          <summary>Xem nội dung chuẩn bị sẵn</summary>
+          <summary>Xem nội dung mail</summary>
           <pre class="part-preview"></pre>
         </details>
       </article>

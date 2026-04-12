@@ -126,6 +126,7 @@ button {
 .brand-sub {
   margin-top: 5px;
   font-size: 12px;
+  font-weight: 800;
   color: var(--muted);
 }
 

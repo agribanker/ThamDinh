@@ -634,7 +634,7 @@ async function copyText(text) {
 async function copyPartText(part) {
   try {
     await copyText(`${part.subject}\n\n${part.body}`);
-    setStatus(true, 'Đã sao chép tiêu đề + nội dung', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
+    setStatus(true, 'Đã sao chép nội dung mail', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
   } catch (error) {
     setStatus(true, 'Không sao chép được', error.message || 'Trình duyệt không cho phép sao chép.');
   }
@@ -953,8 +953,9 @@ function initFormDefaults() {
 }
 
 function wireEvents() {
-  els.regenCodeBtn.addEventListener('click', syncGeneratedCode);
-  els.officerName.addEventListener('input', syncGeneratedCode);
+  if (els.regenCodeBtn) {
+    els.regenCodeBtn.addEventListener('click', syncGeneratedCode);
+  }
 
   if (els.getAssetLocationBtn) {
     els.getAssetLocationBtn.addEventListener('click', fillAssetLocation);
