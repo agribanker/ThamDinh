@@ -14,9 +14,7 @@ const els = {
   getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
-  recipientEmail: document.getElementById('recipientEmail'),
   officerName: document.getElementById('officerName'),
-  officerEmail: document.getElementById('officerEmail'),
   photoInput: document.getElementById('photoInput'),
   cameraInput: document.getElementById('cameraInput'),
   pickLibraryBtn: document.getElementById('pickLibraryBtn'),
@@ -31,7 +29,6 @@ const els = {
   limitWarning: document.getElementById('limitWarning'),
   partsList: document.getElementById('partsList'),
   previewGrid: document.getElementById('previewGrid'),
-  regenCodeBtn: document.getElementById('regenCodeBtn'),
   statusCard: document.getElementById('statusCard'),
   statusTitle: document.getElementById('statusTitle'),
   statusDesc: document.getElementById('statusDesc'),
@@ -47,23 +44,11 @@ const state = {
   originalFiles: [],
   compressedFiles: [],
   parts: [],
-  currentCaseCode: '',
   previewUrls: [],
   addModeNextPick: false,
   autoMode: 'compact',
   deviceShareLimited: false
 };
-
-function stripAccents(value) {
-  return (value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .replace(/[^a-zA-Z0-9\s-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 function formatDateForDisplay(dateStr) {
   if (!dateStr) return '';
@@ -94,28 +79,6 @@ function shortenFileName(name) {
   if (name.length <= 24) return name;
   const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
   return `${name.slice(0, 18)}...${ext}`;
-}
-
-function getTagFromOfficerName(name) {
-  const clean = stripAccents(name);
-  if (!clean) return 'USER';
-  const words = clean.split(' ').filter(Boolean);
-  const last = words[words.length - 1] || clean;
-  return last.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10) || 'USER';
-}
-
-function generateCaseCode() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-  const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  const userTag = getTagFromOfficerName(els.officerName.value);
-  const randomPart = Math.random().toString(36).slice(2, 4).toUpperCase();
-  return `TD-${datePart}-${userTag}-${timePart}${randomPart}`;
-}
-
-function setCaseCode() {
-  state.currentCaseCode = generateCaseCode();
-  els.caseCode.value = state.currentCaseCode;
 }
 
 function setStatus(visible, title = '', desc = '') {
@@ -266,9 +229,9 @@ function collectFormData() {
     mapsLink: els.mapsLink.value.trim(),
     assessmentDate: els.assessmentDate.value,
     notes: els.notes.value.trim(),
-    recipientEmail: els.recipientEmail.value.trim(),
+    recipientEmail: '',
     officerName: els.officerName.value.trim(),
-    officerEmail: els.officerEmail.value.trim()
+    officerEmail: ''
   };
 }
 
@@ -418,8 +381,6 @@ function buildMailParts(parts) {
     const body = [
       `Mã hồ sơ: ${form.caseCode}`,
       '',
-      `Email người nhận: ${form.recipientEmail || ''}`,
-      '',
       `Khách hàng: ${form.customerName || ''}`,
       `Địa chỉ khách hàng: ${form.customerAddress || ''}`,
       `Địa chỉ TSĐB: ${form.assetAddress || ''}`,
@@ -427,7 +388,6 @@ function buildMailParts(parts) {
       `Ngày thẩm định: ${formatDateForDisplay(form.assessmentDate) || ''}`,
       '',
       `CBTD: ${form.officerName || ''}`,
-      `Email CBTD: ${form.officerEmail || ''}`,
       '',
       `Phần: ${indexLabel}`,
       `Số ảnh: ${part.items.length}`,
@@ -922,15 +882,11 @@ function clearImageData() {
 
 function createNewCase() {
   const keepOfficerName = els.officerName.value.trim();
-  const keepOfficerEmail = els.officerEmail.value.trim();
-  const keepRecipient = els.recipientEmail.value.trim();
 
   document.getElementById('caseForm').reset();
   resetFormDefaults();
   els.officerName.value = keepOfficerName;
-  els.officerEmail.value = keepOfficerEmail;
-  els.recipientEmail.value = keepRecipient;
-  setCaseCode();
+  els.caseCode.value = '';
   clearImageData();
   setStatus(true, 'Đã tạo hồ sơ mới', 'Bạn có thể nhập khách hàng tiếp theo ngay.');
 }
@@ -938,25 +894,17 @@ function createNewCase() {
 function clearAll() {
   document.getElementById('caseForm').reset();
   resetFormDefaults();
-  setCaseCode();
+  els.caseCode.value = '';
   clearImageData();
   setStatus(true, 'Đã xóa toàn bộ', 'Dữ liệu hồ sơ và ảnh đã được làm trống.');
 }
 
-function syncGeneratedCode() {
-  setCaseCode();
-}
-
 function initFormDefaults() {
   resetFormDefaults();
-  setCaseCode();
+  els.caseCode.value = '';
 }
 
 function wireEvents() {
-  if (els.regenCodeBtn) {
-    els.regenCodeBtn.addEventListener('click', syncGeneratedCode);
-  }
-
   if (els.getAssetLocationBtn) {
     els.getAssetLocationBtn.addEventListener('click', fillAssetLocation);
   }
@@ -1004,10 +952,10 @@ function wireEvents() {
     els.mapsLink,
     els.assessmentDate,
     els.notes,
-    els.recipientEmail,
-    els.officerName,
-    els.officerEmail
-  ].forEach((input) => {
+    els.officerName
+  ]
+    .filter(Boolean)
+    .forEach((input) => {
     input.addEventListener('input', () => {
       if (!state.compressedFiles.length) return;
       const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));

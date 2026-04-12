@@ -70,7 +70,7 @@ button {
 
 .brand-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
@@ -80,6 +80,7 @@ button {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 
 .brand-logo-slot {
@@ -142,10 +143,11 @@ button {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+  margin-top: 2px;
 }
 
 .hero-copy {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .compact-hero {
@@ -167,8 +169,8 @@ button {
 }
 
 .hero-copy h1 {
-  margin: 14px 0 8px;
-  font-size: clamp(30px, 5.4vw, 46px);
+  margin: 8px 0 0;
+  font-size: clamp(26px, 8.2vw, 46px);
   line-height: 1.05;
   letter-spacing: -0.04em;
 }
@@ -560,6 +562,14 @@ button {
 
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brand-top {
+    align-items: center;
+  }
+
+  .hero-copy {
+    margin-top: 18px;
   }
 
   .map-actions {

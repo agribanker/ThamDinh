@@ -48,8 +48,8 @@
 
         <form id="caseForm" class="form-grid" autocomplete="off">
           <label>
-            <span>Mã hồ sơ</span>
-            <input id="caseCode" name="caseCode" type="text" />
+            <span>Mã khách hàng</span>
+            <input id="caseCode" name="caseCode" type="text" placeholder="6612.............." />
           </label>
           <label>
             <span>Tên khách hàng</span>
@@ -81,16 +81,8 @@
             <input id="notes" name="notes" type="text" placeholder="Hình ảnh hiện trạng tài sản bảo đảm" />
           </label>
           <label>
-            <span>Email người nhận</span>
-            <input id="recipientEmail" name="recipientEmail" type="email" placeholder="recipient@agribank.com" />
-          </label>
-          <label>
             <span>Tên CBTD</span>
             <input id="officerName" name="officerName" type="text" placeholder="Đặng Phúc" />
-          </label>
-          <label class="full">
-            <span>Email CBTD</span>
-            <input id="officerEmail" name="officerEmail" type="email" placeholder="phuc@agribank.com" />
           </label>
         </form>
       </section>
@@ -137,7 +129,7 @@
         <button type="button" class="secondary-btn add-photo-btn" id="addPhotosBtn">Thêm ảnh</button>
       </section>
 
-      <section class="card result-card">
+      <section class="card result-card hidden">
         <div class="section-head">
           <div>
             <h2>3. Kết quả nén và chia phần</h2>
