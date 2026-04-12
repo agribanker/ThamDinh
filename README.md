@@ -14,10 +14,12 @@ App chạy thuần static, nên chỉ cần mở URL GitHub Pages là dùng đư
 - Nén ảnh tự động ngay trên trình duyệt
 - Tính tổng dung lượng sau nén
 - Cảnh báo khi vượt ngưỡng gửi an toàn
-- Tự chia ảnh thành nhiều phần để gửi lần lượt
+- Mặc định gộp 1 phần khi chưa vượt ngưỡng 17MB
+- Có thể bật tách nhỏ theo số ảnh để gửi ổn định hơn trên Android
 - Chuẩn bị sẵn subject và body cho từng phần
 - Mở bảng chia sẻ của điện thoại để bàn giao sang Gmail, Outlook, Apple Mail hoặc ứng dụng mail khác
 - Fallback: copy subject/body và tải ảnh phần đó về máy nếu thiết bị không hỗ trợ share files
+- Lấy vị trí hiện tại, mở Google Maps và sao chép link map ngay trong form
 
 ## Lưu ý
 

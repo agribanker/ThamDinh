@@ -309,6 +309,21 @@ button {
   box-shadow: 0 0 0 4px rgba(167, 29, 63, 0.08);
 }
 
+.map-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.map-btn {
+  min-height: 40px;
+  border-radius: 12px;
+  background: rgba(15, 77, 61, 0.08);
+  color: var(--green);
+  font-weight: 700;
+}
+
 .full {
   grid-column: 1 / -1;
 }
@@ -405,6 +420,11 @@ button {
   color: var(--muted);
 }
 
+.add-photo-btn {
+  margin-top: 12px;
+  width: 100%;
+}
+
 .warning {
   margin-top: 14px;
   padding: 14px 16px;
@@ -412,6 +432,11 @@ button {
   background: rgba(244, 197, 66, 0.14);
   border: 1px solid rgba(244, 197, 66, 0.28);
   color: #8a5b00;
+}
+
+.split-mode-btn {
+  margin-top: 12px;
+  width: 100%;
 }
 
 .parts-list {
@@ -503,6 +528,10 @@ button {
 
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .preview-grid {

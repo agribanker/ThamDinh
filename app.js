@@ -1,25 +1,28 @@
 ﻿const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
-const MAX_FILES_PER_PART = 8;
-const DIRECT_SHARE_MAX_FILES = 8;
-const DIRECT_SHARE_MAX_BYTES = 14 * 1024 * 1024;
+const RECOMMENDED_SPLIT_FILES = 8;
 
 const els = {
   caseCode: document.getElementById('caseCode'),
   customerName: document.getElementById('customerName'),
   assetAddress: document.getElementById('assetAddress'),
   mapsLink: document.getElementById('mapsLink'),
+  getCurrentLocationBtn: document.getElementById('getCurrentLocationBtn'),
+  openMapsBtn: document.getElementById('openMapsBtn'),
+  copyMapsLinkBtn: document.getElementById('copyMapsLinkBtn'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
   recipientEmail: document.getElementById('recipientEmail'),
   officerName: document.getElementById('officerName'),
   officerEmail: document.getElementById('officerEmail'),
   photoInput: document.getElementById('photoInput'),
+  addPhotosBtn: document.getElementById('addPhotosBtn'),
   originalCount: document.getElementById('originalCount'),
   originalSize: document.getElementById('originalSize'),
   compressedSize: document.getElementById('compressedSize'),
   limitStatus: document.getElementById('limitStatus'),
   partCount: document.getElementById('partCount'),
   limitWarning: document.getElementById('limitWarning'),
+  splitModeBtn: document.getElementById('splitModeBtn'),
   partsList: document.getElementById('partsList'),
   previewGrid: document.getElementById('previewGrid'),
   regenCodeBtn: document.getElementById('regenCodeBtn'),
@@ -34,6 +37,8 @@ const state = {
   originalFiles: [],
   compressedFiles: [],
   parts: [],
+  splitByCountMode: false,
+  addModeNextPick: false,
   currentCaseCode: '',
   previewUrls: []
 };
@@ -196,12 +201,10 @@ async function compressImage(file) {
   const image = await readFileAsImage(file);
   let maxEdge = 1920;
   let quality = 0.8;
-
   let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
 
   for (let i = 0; i < 6; i += 1) {
-    const targetGood = 1.4 * 1024 * 1024;
-    if (bestBlob.size <= targetGood) {
+    if (bestBlob.size <= 1.4 * 1024 * 1024) {
       break;
     }
 
@@ -228,7 +231,7 @@ function blobToFile(blob, originalName, index) {
   });
 }
 
-function splitIntoParts(items, limit) {
+function splitIntoParts(items, limit, maxFilesPerPart = Number.POSITIVE_INFINITY) {
   const parts = [];
   let current = [];
   let currentSize = 0;
@@ -245,7 +248,8 @@ function splitIntoParts(items, limit) {
     }
 
     const willExceedSize = currentSize + item.size > limit;
-    const willExceedCount = current.length >= MAX_FILES_PER_PART;
+    const willExceedCount = current.length >= maxFilesPerPart;
+
     if ((willExceedSize || willExceedCount) && current.length) {
       parts.push({ items: current, size: currentSize });
       current = [item];
@@ -300,17 +304,32 @@ function buildMailParts(parts) {
       files: part.items.map((item) => item.file),
       subject,
       body,
-      oversize: Boolean(part.oversize),
-      directShareEligible: part.items.length <= DIRECT_SHARE_MAX_FILES && part.size <= DIRECT_SHARE_MAX_BYTES
+      oversize: Boolean(part.oversize)
     };
   });
 }
 
+function updateSplitModeButton() {
+  if (!els.splitModeBtn) return;
+
+  if (!state.compressedFiles.length) {
+    els.splitModeBtn.classList.add('hidden');
+    return;
+  }
+
+  els.splitModeBtn.classList.remove('hidden');
+  els.splitModeBtn.textContent = state.splitByCountMode
+    ? 'Đang tách nhỏ theo số ảnh - Bấm để gộp lại theo ngưỡng 17MB'
+    : `Đang gộp theo ngưỡng 17MB - Bấm để tách nhỏ theo ${RECOMMENDED_SPLIT_FILES} ảnh/phần`;
+}
+
 function rebuildPreparedParts() {
   const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
-  state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES));
+  const maxFiles = state.splitByCountMode ? RECOMMENDED_SPLIT_FILES : Number.POSITIVE_INFINITY;
+  state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES, maxFiles));
   renderPreview();
   updateSummary();
+  updateSplitModeButton();
   renderParts();
 }
 
@@ -329,8 +348,7 @@ function updateSummary() {
     return;
   }
 
-  const overSafeLimit = compressedBytes > SAFE_LIMIT_BYTES;
-  if (overSafeLimit) {
+  if (compressedBytes > SAFE_LIMIT_BYTES) {
     els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
     setWarning(
       'Dung lượng vượt ngưỡng gửi an toàn. Hệ thống đã chia thành nhiều phần để gửi lần lượt. Vui lòng gửi lần lượt từng phần qua ứng dụng mail trên điện thoại.'
@@ -338,10 +356,9 @@ function updateSummary() {
     return;
   }
 
-  const autoSplitByCount = state.parts.length > 1;
-  if (autoSplitByCount) {
-    els.limitStatus.textContent = `Đã chia ${state.parts.length} phần để gửi ổn định`;
-    setWarning('Hệ thống tách nhỏ theo số ảnh mỗi phần để tăng khả năng mở Gmail/Outlook thành công trên điện thoại.');
+  if (state.splitByCountMode && state.parts.length > 1) {
+    els.limitStatus.textContent = `Đã tách ${state.parts.length} phần để gửi ổn định`;
+    setWarning('Bạn đang bật chế độ tách theo số ảnh để tăng độ ổn định khi mở Gmail/Outlook trên Android.');
     return;
   }
 
@@ -420,11 +437,6 @@ function renderParts() {
     shareBtn.addEventListener('click', () => sharePart(part));
     copyBtn.addEventListener('click', () => copyPartText(part));
     downloadBtn.addEventListener('click', () => downloadPart(part));
-
-    if (!part.directShareEligible) {
-      shareBtn.textContent = 'Phần còn nặng';
-      shareBtn.disabled = true;
-    }
 
     els.partsList.appendChild(card);
   });
@@ -506,11 +518,6 @@ function downloadPart(part) {
 }
 
 async function sharePart(part) {
-  if (!part.directShareEligible) {
-    setStatus(true, 'Phần gửi còn nặng', 'Hãy xóa bớt ảnh để phần nhẹ hơn, hoặc dùng Tải dự phòng để gửi thủ công.');
-    return;
-  }
-
   const files = part.files.map((file, idx) =>
     new File([file], file.name || `photo_${idx + 1}.jpg`, {
       type: file.type || 'image/jpeg',
@@ -537,50 +544,133 @@ async function sharePart(part) {
     }
   }
 
+  if (!state.splitByCountMode && files.length > RECOMMENDED_SPLIT_FILES) {
+    state.splitByCountMode = true;
+    rebuildPreparedParts();
+    setStatus(
+      true,
+      'Đã tự chuyển sang tách nhỏ theo số ảnh',
+      `Thiết bị không chia sẻ tốt khi quá nhiều ảnh 1 lần. Hệ thống đã tách theo ${RECOMMENDED_SPLIT_FILES} ảnh/phần để bạn gửi lại.`
+    );
+    return;
+  }
+
   await copyPartText(part);
   setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã copy nội dung. Tiếp theo bấm Tải dự phòng để gửi thủ công.');
 }
 
-async function processSelectedFiles(fileList) {
+function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Thiết bị không hỗ trợ định vị.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+function buildGoogleMapsLink(lat, lng) {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+async function fillCurrentLocationToMapsLink({ alsoOpen = false, alsoCopy = true } = {}) {
+  try {
+    setStatus(true, 'Đang lấy vị trí hiện tại...', 'Vui lòng chờ vài giây để GPS định vị.');
+    const pos = await getCurrentPosition();
+    const lat = Number(pos.coords.latitude).toFixed(6);
+    const lng = Number(pos.coords.longitude).toFixed(6);
+    const url = buildGoogleMapsLink(lat, lng);
+
+    els.mapsLink.value = url;
+
+    if (alsoCopy) {
+      await copyText(url);
+      setStatus(true, 'Đã lấy vị trí hiện tại', 'Đã điền và sao chép link vị trí vào clipboard.');
+    } else {
+      setStatus(true, 'Đã lấy vị trí hiện tại', 'Đã điền link vị trí vào ô Google Maps.');
+    }
+
+    if (alsoOpen) {
+      window.open(url, '_blank', 'noopener');
+    }
+  } catch (error) {
+    setStatus(true, 'Không lấy được vị trí', error.message || 'Vui lòng bật GPS và cấp quyền vị trí cho trình duyệt.');
+  }
+}
+
+async function handleOpenMaps() {
+  const value = els.mapsLink.value.trim();
+  if (value) {
+    window.open(value, '_blank', 'noopener');
+    return;
+  }
+
+  await fillCurrentLocationToMapsLink({ alsoOpen: true, alsoCopy: true });
+}
+
+async function handleCopyMapsLink() {
+  const value = els.mapsLink.value.trim();
+  if (!value) {
+    setStatus(true, 'Chưa có link map', 'Vui lòng lấy vị trí hiện tại hoặc nhập link trước khi sao chép.');
+    return;
+  }
+
+  try {
+    await copyText(value);
+    setStatus(true, 'Đã sao chép link map', 'Link Google Maps đã được sao chép.');
+  } catch (error) {
+    setStatus(true, 'Không sao chép được', error.message || 'Trình duyệt không cho phép sao chép.');
+  }
+}
+
+async function processSelectedFiles(fileList, append = false) {
   if (!fileList.length) {
-    state.originalFiles = [];
-    state.compressedFiles = [];
-    state.parts = [];
-    rebuildPreparedParts();
     return;
   }
 
   setStatus(true, 'Đang xử lý ảnh...', 'Đang nén ảnh và chuẩn bị phần gửi.');
   els.photoInput.disabled = true;
+  if (els.addPhotosBtn) els.addPhotosBtn.disabled = true;
 
   try {
-    const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
-    state.originalFiles = files.slice();
+    const incoming = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+    if (!incoming.length) {
+      setStatus(true, 'Không có ảnh hợp lệ', 'Vui lòng chọn lại ảnh từ thư viện.');
+      return;
+    }
 
     const compressed = [];
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i];
-      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${files.length}: ${shortenFileName(file.name)}`);
+    for (let i = 0; i < incoming.length; i += 1) {
+      const file = incoming[i];
+      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
       const blob = await compressImage(file);
       compressed.push(blobToFile(blob, file.name, i));
     }
 
-    state.compressedFiles = compressed;
+    if (append) {
+      state.originalFiles = [...state.originalFiles, ...incoming];
+      state.compressedFiles = [...state.compressedFiles, ...compressed];
+    } else {
+      state.originalFiles = incoming.slice();
+      state.compressedFiles = compressed;
+      state.splitByCountMode = false;
+    }
+
     rebuildPreparedParts();
 
-    if (state.parts.length) {
-      const statusMsg =
-        state.parts.length === 1 ? 'Ảnh đã sẵn sàng gửi.' : `Đã tách thành ${state.parts.length} phần để gửi ổn định hơn.`;
-      setStatus(true, 'Đã sẵn sàng gửi', statusMsg);
-    } else {
-      setStatus(false);
-    }
+    const statusMsg =
+      state.parts.length === 1
+        ? 'Ảnh đã sẵn sàng gửi.'
+        : `Đã chuẩn bị ${state.parts.length} phần để gửi.`;
+    setStatus(true, 'Đã sẵn sàng gửi', statusMsg);
   } catch (error) {
     console.error(error);
     setStatus(true, 'Xử lý ảnh thất bại', error.message || 'Có lỗi khi nén ảnh.');
   } finally {
     els.photoInput.disabled = false;
     els.photoInput.value = '';
+    if (els.addPhotosBtn) els.addPhotosBtn.disabled = false;
+    state.addModeNextPick = false;
   }
 }
 
@@ -599,6 +689,34 @@ function wireEvents() {
   els.regenCodeBtn.addEventListener('click', syncGeneratedCode);
   els.officerName.addEventListener('input', syncGeneratedCode);
 
+  if (els.getCurrentLocationBtn) {
+    els.getCurrentLocationBtn.addEventListener('click', () => {
+      fillCurrentLocationToMapsLink({ alsoOpen: false, alsoCopy: true });
+    });
+  }
+
+  if (els.openMapsBtn) {
+    els.openMapsBtn.addEventListener('click', handleOpenMaps);
+  }
+
+  if (els.copyMapsLinkBtn) {
+    els.copyMapsLinkBtn.addEventListener('click', handleCopyMapsLink);
+  }
+
+  if (els.addPhotosBtn) {
+    els.addPhotosBtn.addEventListener('click', () => {
+      state.addModeNextPick = true;
+      els.photoInput.click();
+    });
+  }
+
+  if (els.splitModeBtn) {
+    els.splitModeBtn.addEventListener('click', () => {
+      state.splitByCountMode = !state.splitByCountMode;
+      rebuildPreparedParts();
+    });
+  }
+
   [
     els.customerName,
     els.assetAddress,
@@ -612,19 +730,21 @@ function wireEvents() {
     input.addEventListener('input', () => {
       if (!state.compressedFiles.length) return;
       const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
-      state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES));
+      const maxFiles = state.splitByCountMode ? RECOMMENDED_SPLIT_FILES : Number.POSITIVE_INFINITY;
+      state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES, maxFiles));
       updateSummary();
       renderParts();
     });
   });
 
   els.photoInput.addEventListener('change', (event) => {
-    processSelectedFiles(event.target.files || []);
+    processSelectedFiles(event.target.files || [], state.addModeNextPick);
   });
 }
 
 initFormDefaults();
 wireEvents();
 updateSummary();
+updateSplitModeButton();
 renderPreview();
 renderParts();

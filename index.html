@@ -76,6 +76,11 @@
           <label class="full">
             <span>Link Google Maps của tài sản nếu có</span>
             <input id="mapsLink" name="mapsLink" type="url" placeholder="https://maps.google.com/..." />
+            <div class="map-actions">
+              <button type="button" class="map-btn" id="getCurrentLocationBtn">Lấy vị trí hiện tại</button>
+              <button type="button" class="map-btn" id="openMapsBtn">Mở Google Maps</button>
+              <button type="button" class="map-btn" id="copyMapsLinkBtn">Sao chép link map</button>
+            </div>
           </label>
           <label>
             <span>Ngày thẩm định</span>
@@ -133,6 +138,7 @@
         </div>
 
         <div class="preview-grid" id="previewGrid"></div>
+        <button type="button" class="secondary-btn add-photo-btn" id="addPhotosBtn">Thêm ảnh</button>
       </section>
 
       <section class="card result-card">
@@ -159,6 +165,7 @@
         </div>
 
         <div class="warning hidden" id="limitWarning"></div>
+        <button type="button" class="ghost-btn split-mode-btn hidden" id="splitModeBtn"></button>
       </section>
 
       <section class="card parts-card">
