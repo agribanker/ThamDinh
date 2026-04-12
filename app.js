@@ -676,60 +676,24 @@ function downloadPart(part) {
   setStatus(true, 'Đã tạo bộ tải dự phòng', 'Nếu chia sẻ trực tiếp lỗi, hãy gửi thủ công bằng ảnh đã tải + nội dung đã copy.');
 }
 
-function buildPdfSummaryHtml(form, files) {
-  const rows = files
-    .map(
-      (file, idx) =>
-        `<tr><td>${idx + 1}</td><td>${escapeHtml(file.name)}</td><td>${formatBytes(file.size)}</td></tr>`
-    )
-    .join('');
-
-  return `<!doctype html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8" />
-  <title>Tom tat ho so ${escapeHtml(form.caseCode || '')}</title>
-  <style>
-    body { font-family: Arial, sans-serif; color: #222; margin: 24px; }
-    h1 { margin: 0 0 8px; color: #a71d3f; }
-    .sub { margin-bottom: 16px; color: #555; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-bottom: 16px; }
-    .label { font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { border: 1px solid #d8d8d8; padding: 8px; text-align: left; }
-    th { background: #f5f2f2; }
-  </style>
-</head>
-<body>
-  <h1>Biên bản tóm tắt hồ sơ thẩm định</h1>
-  <div class="sub">Mã hồ sơ: ${escapeHtml(form.caseCode || '')}</div>
-  <div class="grid">
-    <div><span class="label">Khách hàng:</span> ${escapeHtml(form.customerName || '')}</div>
-    <div><span class="label">Ngày thẩm định:</span> ${escapeHtml(formatDateForDisplay(form.assessmentDate) || '')}</div>
-    <div><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</div>
-    <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
-    <div><span class="label">Email người nhận:</span> ${escapeHtml(form.recipientEmail || '')}</div>
-    <div><span class="label">Email CBTD:</span> ${escapeHtml(form.officerEmail || '')}</div>
-    <div style="grid-column: 1 / -1;"><span class="label">Link map:</span> ${escapeHtml(form.mapsLink || '')}</div>
-    <div style="grid-column: 1 / -1;"><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</div>
-  </div>
-  <h2>Danh sách ảnh (${files.length} ảnh, ${formatBytes(getTotalCompressedBytes())})</h2>
-  <table>
-    <thead><tr><th>#</th><th>Tên ảnh</th><th>Dung lượng</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-</body>
-</html>`;
-}
-
-function exportSummaryPdf() {
+async function exportSummaryPdf() {
   if (!state.compressedFiles.length) {
     setStatus(true, 'Chưa có ảnh để xuất PDF', 'Vui lòng chọn ảnh trước khi xuất biên bản tóm tắt.');
     return;
   }
 
   const form = collectFormData();
-  const html = buildPdfSummaryHtml(form, state.compressedFiles);
+  if (!window.PdfSummary?.buildPdfSummaryHtml) {
+    setStatus(true, 'Thiếu module PDF', 'Không tìm thấy file pdf-summary.js.');
+    return;
+  }
+
+  setStatus(true, 'Đang chuẩn bị PDF...', 'Đang nhúng ảnh và dựng bố cục PDF.');
+  const html = await window.PdfSummary.buildPdfSummaryHtml({
+    form,
+    files: state.compressedFiles,
+    totalBytes: getTotalCompressedBytes()
+  });
   const win = window.open('', '_blank');
   if (!win) {
     setStatus(true, 'Trình duyệt chặn popup', 'Hãy bật popup để xuất PDF.');
@@ -755,6 +719,10 @@ async function sharePart(part) {
   if (!ok) return;
 
   const files = cloneFilesForShare(part.files);
+  const textOnlyData = {
+    title: part.subject,
+    text: `${part.subject}\n\n${part.body}`
+  };
 
   const shareData = {
     title: part.subject,
@@ -784,6 +752,17 @@ async function sharePart(part) {
         setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
         return;
       }
+      if (files.length > 1) {
+        const wasSplit = forceSplitForDeviceShare();
+        if (wasSplit) {
+          setStatus(
+            true,
+            'Thiết bị từ chối chia sẻ nhiều ảnh cùng lúc',
+            'Đã tự chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
+          );
+          return;
+        }
+      }
     }
   }
 
@@ -797,6 +776,31 @@ async function sharePart(part) {
       );
       return;
     }
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share(textOnlyData);
+      setStatus(
+        true,
+        'Đã mở ứng dụng chia sẻ',
+        'Thiết bị không hỗ trợ đính kèm file trực tiếp từ web. Hãy đính kèm ảnh thủ công hoặc dùng Tải dự phòng.'
+      );
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
+        return;
+      }
+    }
+  }
+
+  const recipient = collectFormData().recipientEmail;
+  if (recipient) {
+    const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(part.subject)}&body=${encodeURIComponent(part.body)}`;
+    window.location.href = mailto;
+    setStatus(true, 'Đã mở ứng dụng mail', 'Nếu không tự đính kèm ảnh, hãy dùng Tải dự phòng rồi gửi thủ công.');
+    return;
   }
 
   await copyPartText(part);
