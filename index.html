@@ -77,9 +77,7 @@
             <span>Link Google Maps của tài sản nếu có</span>
             <input id="mapsLink" name="mapsLink" type="url" placeholder="https://maps.google.com/..." />
             <div class="map-actions">
-              <button type="button" class="map-btn" id="getCurrentLocationBtn">Lấy vị trí hiện tại</button>
-              <button type="button" class="map-btn" id="openMapsBtn">Mở Google Maps</button>
-              <button type="button" class="map-btn" id="copyMapsLinkBtn">Sao chép link map</button>
+              <button type="button" class="map-btn" id="getAssetLocationBtn">Lấy vị trí tài sản</button>
             </div>
           </label>
           <label>
@@ -113,13 +111,28 @@
           </div>
         </div>
 
-        <label class="upload-zone" for="photoInput">
-          <input id="photoInput" type="file" accept="image/*" multiple />
+        <input id="photoInput" type="file" accept="image/*" multiple class="hidden-file" />
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden-file" />
+
+        <div class="upload-zone">
           <div class="upload-copy">
             <strong>Chọn nhiều ảnh từ điện thoại</strong>
-            <span>Chạm để mở thư viện ảnh hoặc camera</span>
+            <span>Chọn từ thư viện hoặc chụp trực tiếp tại hiện trường</span>
           </div>
-        </label>
+          <div class="picker-actions">
+            <button type="button" class="secondary-btn" id="pickLibraryBtn">Chọn từ thư viện</button>
+            <button type="button" class="tertiary-btn" id="pickCameraBtn">Chụp ảnh</button>
+          </div>
+        </div>
+
+        <div class="quality-card">
+          <div class="quality-title">Chất lượng nén</div>
+          <div class="quality-options">
+            <label><input type="radio" name="compressPreset" value="high" /> Rõ đẹp</label>
+            <label><input type="radio" name="compressPreset" value="balanced" checked /> Cân bằng (Thông minh)</label>
+            <label><input type="radio" name="compressPreset" value="strong" /> Nén mạnh</label>
+          </div>
+        </div>
 
         <div class="stats-row" id="originalStats">
           <div class="stat-pill">
@@ -165,7 +178,10 @@
         </div>
 
         <div class="warning hidden" id="limitWarning"></div>
-        <button type="button" class="ghost-btn split-mode-btn hidden" id="splitModeBtn"></button>
+        <div class="mode-switch">
+          <button type="button" class="ghost-btn mode-btn" id="modeStableBtn">Chế độ ổn định</button>
+          <button type="button" class="ghost-btn mode-btn" id="modeCompactBtn">Chế độ gọn</button>
+        </div>
       </section>
 
       <section class="card parts-card">
@@ -177,6 +193,10 @@
         </div>
 
         <div class="parts-list" id="partsList"></div>
+        <div class="case-actions">
+          <button type="button" class="secondary-btn" id="newCaseBtn">Tạo hồ sơ mới</button>
+          <button type="button" class="tertiary-btn" id="clearAllBtn">Xóa toàn bộ</button>
+        </div>
       </section>
     </main>
 

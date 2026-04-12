@@ -1,20 +1,22 @@
 ﻿const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
-const RECOMMENDED_SPLIT_FILES = 8;
+const STABLE_MAX_FILES_PER_PART = 6;
+const STABLE_MAX_BYTES_PER_PART = 10 * 1024 * 1024;
 
 const els = {
   caseCode: document.getElementById('caseCode'),
   customerName: document.getElementById('customerName'),
   assetAddress: document.getElementById('assetAddress'),
   mapsLink: document.getElementById('mapsLink'),
-  getCurrentLocationBtn: document.getElementById('getCurrentLocationBtn'),
-  openMapsBtn: document.getElementById('openMapsBtn'),
-  copyMapsLinkBtn: document.getElementById('copyMapsLinkBtn'),
+  getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
   recipientEmail: document.getElementById('recipientEmail'),
   officerName: document.getElementById('officerName'),
   officerEmail: document.getElementById('officerEmail'),
   photoInput: document.getElementById('photoInput'),
+  cameraInput: document.getElementById('cameraInput'),
+  pickLibraryBtn: document.getElementById('pickLibraryBtn'),
+  pickCameraBtn: document.getElementById('pickCameraBtn'),
   addPhotosBtn: document.getElementById('addPhotosBtn'),
   originalCount: document.getElementById('originalCount'),
   originalSize: document.getElementById('originalSize'),
@@ -22,13 +24,16 @@ const els = {
   limitStatus: document.getElementById('limitStatus'),
   partCount: document.getElementById('partCount'),
   limitWarning: document.getElementById('limitWarning'),
-  splitModeBtn: document.getElementById('splitModeBtn'),
+  modeStableBtn: document.getElementById('modeStableBtn'),
+  modeCompactBtn: document.getElementById('modeCompactBtn'),
   partsList: document.getElementById('partsList'),
   previewGrid: document.getElementById('previewGrid'),
   regenCodeBtn: document.getElementById('regenCodeBtn'),
   statusCard: document.getElementById('statusCard'),
   statusTitle: document.getElementById('statusTitle'),
-  statusDesc: document.getElementById('statusDesc')
+  statusDesc: document.getElementById('statusDesc'),
+  newCaseBtn: document.getElementById('newCaseBtn'),
+  clearAllBtn: document.getElementById('clearAllBtn')
 };
 
 const template = document.getElementById('partTemplate');
@@ -37,10 +42,11 @@ const state = {
   originalFiles: [],
   compressedFiles: [],
   parts: [],
-  splitByCountMode: false,
-  addModeNextPick: false,
   currentCaseCode: '',
-  previewUrls: []
+  previewUrls: [],
+  addModeNextPick: false,
+  sendMode: 'compact',
+  compressPreset: 'balanced'
 };
 
 function stripAccents(value) {
@@ -197,21 +203,50 @@ function renderCompressedBlob(image, maxEdge, quality) {
   });
 }
 
+function getPresetConfig() {
+  if (state.compressPreset === 'high') {
+    return {
+      maxEdge: 2200,
+      quality: 0.86,
+      targetBytes: 2.2 * 1024 * 1024,
+      minEdge: 1400,
+      minQuality: 0.68
+    };
+  }
+  if (state.compressPreset === 'strong') {
+    return {
+      maxEdge: 1500,
+      quality: 0.7,
+      targetBytes: 0.9 * 1024 * 1024,
+      minEdge: 1000,
+      minQuality: 0.5
+    };
+  }
+
+  return {
+    maxEdge: 1920,
+    quality: 0.8,
+    targetBytes: 1.4 * 1024 * 1024,
+    minEdge: 1080,
+    minQuality: 0.58
+  };
+}
+
 async function compressImage(file) {
   const image = await readFileAsImage(file);
-  let maxEdge = 1920;
-  let quality = 0.8;
+  const cfg = getPresetConfig();
+
+  let maxEdge = cfg.maxEdge;
+  let quality = cfg.quality;
   let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
 
   for (let i = 0; i < 6; i += 1) {
-    if (bestBlob.size <= 1.4 * 1024 * 1024) {
-      break;
-    }
+    if (bestBlob.size <= cfg.targetBytes) break;
 
     if (i % 2 === 0) {
-      maxEdge = Math.max(1080, Math.round(maxEdge * 0.9));
+      maxEdge = Math.max(cfg.minEdge, Math.round(maxEdge * 0.9));
     } else {
-      quality = Math.max(0.58, Number((quality - 0.06).toFixed(2)));
+      quality = Math.max(cfg.minQuality, Number((quality - 0.06).toFixed(2)));
     }
 
     const candidate = await renderCompressedBlob(image, maxEdge, quality);
@@ -231,13 +266,16 @@ function blobToFile(blob, originalName, index) {
   });
 }
 
-function splitIntoParts(items, limit, maxFilesPerPart = Number.POSITIVE_INFINITY) {
+function splitIntoParts(items, limit, mode) {
   const parts = [];
   let current = [];
   let currentSize = 0;
 
   items.forEach((item) => {
-    if (item.size > limit) {
+    const partLimit = mode === 'stable' ? Math.min(limit, STABLE_MAX_BYTES_PER_PART) : limit;
+    const maxFiles = mode === 'stable' ? STABLE_MAX_FILES_PER_PART : Number.POSITIVE_INFINITY;
+
+    if (item.size > partLimit) {
       if (current.length) {
         parts.push({ items: current, size: currentSize });
         current = [];
@@ -247,9 +285,8 @@ function splitIntoParts(items, limit, maxFilesPerPart = Number.POSITIVE_INFINITY
       return;
     }
 
-    const willExceedSize = currentSize + item.size > limit;
-    const willExceedCount = current.length >= maxFilesPerPart;
-
+    const willExceedSize = currentSize + item.size > partLimit;
+    const willExceedCount = current.length >= maxFiles;
     if ((willExceedSize || willExceedCount) && current.length) {
       parts.push({ items: current, size: currentSize });
       current = [item];
@@ -309,27 +346,18 @@ function buildMailParts(parts) {
   });
 }
 
-function updateSplitModeButton() {
-  if (!els.splitModeBtn) return;
-
-  if (!state.compressedFiles.length) {
-    els.splitModeBtn.classList.add('hidden');
-    return;
-  }
-
-  els.splitModeBtn.classList.remove('hidden');
-  els.splitModeBtn.textContent = state.splitByCountMode
-    ? 'Đang tách nhỏ theo số ảnh - Bấm để gộp lại theo ngưỡng 17MB'
-    : `Đang gộp theo ngưỡng 17MB - Bấm để tách nhỏ theo ${RECOMMENDED_SPLIT_FILES} ảnh/phần`;
+function updateModeButtons() {
+  if (!els.modeStableBtn || !els.modeCompactBtn) return;
+  els.modeStableBtn.classList.toggle('active-mode', state.sendMode === 'stable');
+  els.modeCompactBtn.classList.toggle('active-mode', state.sendMode === 'compact');
 }
 
 function rebuildPreparedParts() {
   const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
-  const maxFiles = state.splitByCountMode ? RECOMMENDED_SPLIT_FILES : Number.POSITIVE_INFINITY;
-  state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES, maxFiles));
+  state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES, state.sendMode));
   renderPreview();
   updateSummary();
-  updateSplitModeButton();
+  updateModeButtons();
   renderParts();
 }
 
@@ -350,20 +378,34 @@ function updateSummary() {
 
   if (compressedBytes > SAFE_LIMIT_BYTES) {
     els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
-    setWarning(
-      'Dung lượng vượt ngưỡng gửi an toàn. Hệ thống đã chia thành nhiều phần để gửi lần lượt. Vui lòng gửi lần lượt từng phần qua ứng dụng mail trên điện thoại.'
-    );
+    setWarning('Dung lượng vượt ngưỡng gửi an toàn. Vui lòng gửi lần lượt từng phần qua ứng dụng mail trên điện thoại.');
     return;
   }
 
-  if (state.splitByCountMode && state.parts.length > 1) {
-    els.limitStatus.textContent = `Đã tách ${state.parts.length} phần để gửi ổn định`;
-    setWarning('Bạn đang bật chế độ tách theo số ảnh để tăng độ ổn định khi mở Gmail/Outlook trên Android.');
+  if (state.sendMode === 'stable' && state.parts.length > 1) {
+    els.limitStatus.textContent = `Đã chia ${state.parts.length} phần (ổn định)`;
+    setWarning('Chế độ ổn định: chia nhỏ ảnh để mở mail dễ hơn.');
     return;
   }
 
-  els.limitStatus.textContent = 'Đã sẵn sàng gửi 1 phần';
-  setWarning('');
+  els.limitStatus.textContent = state.parts.length > 1 ? `Đã chia ${state.parts.length} phần` : 'Đã sẵn sàng gửi 1 phần';
+  setWarning(state.sendMode === 'compact' ? 'Chế độ gọn: gom tối đa theo ngưỡng 17MB để giảm số mail.' : '');
+}
+
+function moveImage(from, to) {
+  if (from === to || from < 0 || to < 0 || from >= state.compressedFiles.length || to >= state.compressedFiles.length) {
+    return;
+  }
+
+  const [movedCompressed] = state.compressedFiles.splice(from, 1);
+  state.compressedFiles.splice(to, 0, movedCompressed);
+
+  if (from < state.originalFiles.length && to < state.originalFiles.length) {
+    const [movedOriginal] = state.originalFiles.splice(from, 1);
+    state.originalFiles.splice(to, 0, movedOriginal);
+  }
+
+  rebuildPreparedParts();
 }
 
 function makePreviewItem(file, index) {
@@ -380,21 +422,37 @@ function makePreviewItem(file, index) {
   state.previewUrls.push(previewUrl);
   img.src = previewUrl;
 
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'preview-delete';
-  del.textContent = 'Xóa';
-  del.addEventListener('click', () => removeImageAt(index));
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.className = 'preview-delete';
+  deleteBtn.textContent = 'Xóa';
+  deleteBtn.addEventListener('click', () => removeImageAt(index));
 
   media.appendChild(img);
-  media.appendChild(del);
+  media.appendChild(deleteBtn);
 
   const meta = document.createElement('div');
   meta.className = 'preview-meta';
   meta.innerHTML = `<strong>${escapeHtml(shortenFileName(file.name))}</strong><br>${formatBytes(file.size)}`;
 
+  const sortRow = document.createElement('div');
+  sortRow.className = 'preview-sort';
+  sortRow.innerHTML = `
+    <button type="button" class="sort-btn" aria-label="Đưa lên đầu">⤒</button>
+    <button type="button" class="sort-btn" aria-label="Lên">↑</button>
+    <button type="button" class="sort-btn" aria-label="Xuống">↓</button>
+    <button type="button" class="sort-btn" aria-label="Xuống cuối">⤓</button>
+  `;
+
+  const [topBtn, upBtn, downBtn, bottomBtn] = sortRow.querySelectorAll('button');
+  topBtn.addEventListener('click', () => moveImage(index, 0));
+  upBtn.addEventListener('click', () => moveImage(index, Math.max(0, index - 1)));
+  downBtn.addEventListener('click', () => moveImage(index, Math.min(state.compressedFiles.length - 1, index + 1)));
+  bottomBtn.addEventListener('click', () => moveImage(index, state.compressedFiles.length - 1));
+
   wrapper.appendChild(media);
   wrapper.appendChild(meta);
+  wrapper.appendChild(sortRow);
   return wrapper;
 }
 
@@ -517,7 +575,14 @@ function downloadPart(part) {
   setStatus(true, 'Đã tạo bộ tải dự phòng', 'Nếu chia sẻ trực tiếp lỗi, hãy gửi thủ công bằng ảnh đã tải + nội dung đã copy.');
 }
 
+function buildShareConfirmMessage(part) {
+  return `Bạn sắp mở mail để gửi Phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục?`;
+}
+
 async function sharePart(part) {
+  const ok = window.confirm(buildShareConfirmMessage(part));
+  if (!ok) return;
+
   const files = part.files.map((file, idx) =>
     new File([file], file.name || `photo_${idx + 1}.jpg`, {
       type: file.type || 'image/jpeg',
@@ -544,14 +609,10 @@ async function sharePart(part) {
     }
   }
 
-  if (!state.splitByCountMode && files.length > RECOMMENDED_SPLIT_FILES) {
-    state.splitByCountMode = true;
+  if (state.sendMode === 'compact' && files.length > STABLE_MAX_FILES_PER_PART) {
+    state.sendMode = 'stable';
     rebuildPreparedParts();
-    setStatus(
-      true,
-      'Đã tự chuyển sang tách nhỏ theo số ảnh',
-      `Thiết bị không chia sẻ tốt khi quá nhiều ảnh 1 lần. Hệ thống đã tách theo ${RECOMMENDED_SPLIT_FILES} ảnh/phần để bạn gửi lại.`
-    );
+    setStatus(true, 'Đã chuyển sang chế độ ổn định', 'Thiết bị đang khó mở mail khi nhiều ảnh. Hệ thống đã tách nhỏ để gửi lại.');
     return;
   }
 
@@ -573,69 +634,36 @@ function buildGoogleMapsLink(lat, lng) {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
-async function fillCurrentLocationToMapsLink({ alsoOpen = false, alsoCopy = true } = {}) {
+async function fillAssetLocation() {
   try {
-    setStatus(true, 'Đang lấy vị trí hiện tại...', 'Vui lòng chờ vài giây để GPS định vị.');
+    setStatus(true, 'Đang lấy vị trí tài sản...', 'Vui lòng chờ vài giây để GPS định vị.');
     const pos = await getCurrentPosition();
     const lat = Number(pos.coords.latitude).toFixed(6);
     const lng = Number(pos.coords.longitude).toFixed(6);
     const url = buildGoogleMapsLink(lat, lng);
 
+    const hadValue = Boolean(els.mapsLink.value.trim());
     els.mapsLink.value = url;
+    await copyText(url);
 
-    if (alsoCopy) {
-      await copyText(url);
-      setStatus(true, 'Đã lấy vị trí hiện tại', 'Đã điền và sao chép link vị trí vào clipboard.');
-    } else {
-      setStatus(true, 'Đã lấy vị trí hiện tại', 'Đã điền link vị trí vào ô Google Maps.');
-    }
-
-    if (alsoOpen) {
-      window.open(url, '_blank', 'noopener');
-    }
-  } catch (error) {
-    setStatus(true, 'Không lấy được vị trí', error.message || 'Vui lòng bật GPS và cấp quyền vị trí cho trình duyệt.');
-  }
-}
-
-async function handleOpenMaps() {
-  const value = els.mapsLink.value.trim();
-  if (value) {
-    window.open(value, '_blank', 'noopener');
-    return;
-  }
-
-  await fillCurrentLocationToMapsLink({ alsoOpen: true, alsoCopy: true });
-}
-
-async function handleCopyMapsLink() {
-  const value = els.mapsLink.value.trim();
-  if (!value) {
-    setStatus(true, 'Chưa có link map', 'Vui lòng lấy vị trí hiện tại hoặc nhập link trước khi sao chép.');
-    return;
-  }
-
-  try {
-    await copyText(value);
-    setStatus(true, 'Đã sao chép link map', 'Link Google Maps đã được sao chép.');
-  } catch (error) {
-    setStatus(true, 'Không sao chép được', error.message || 'Trình duyệt không cho phép sao chép.');
+    setStatus(true, hadValue ? 'Đã cập nhật vị trí mới' : 'Đã lấy vị trí tài sản', 'Link Google Maps đã được điền và sao chép.');
+  } catch {
+    setStatus(true, 'Không lấy được vị trí', 'Không lấy được vị trí. Hãy mở bằng Chrome hoặc dán link Google Maps thủ công.');
   }
 }
 
 async function processSelectedFiles(fileList, append = false) {
-  if (!fileList.length) {
-    return;
-  }
+  if (!fileList.length) return;
 
   setStatus(true, 'Đang xử lý ảnh...', 'Đang nén ảnh và chuẩn bị phần gửi.');
   els.photoInput.disabled = true;
+  if (els.cameraInput) els.cameraInput.disabled = true;
   if (els.addPhotosBtn) els.addPhotosBtn.disabled = true;
 
   try {
     const incoming = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
     if (!incoming.length) {
-      setStatus(true, 'Không có ảnh hợp lệ', 'Vui lòng chọn lại ảnh từ thư viện.');
+      setStatus(true, 'Không có ảnh hợp lệ', 'Vui lòng chọn lại ảnh từ thư viện hoặc camera.');
       return;
     }
 
@@ -653,15 +681,11 @@ async function processSelectedFiles(fileList, append = false) {
     } else {
       state.originalFiles = incoming.slice();
       state.compressedFiles = compressed;
-      state.splitByCountMode = false;
+      state.sendMode = 'compact';
     }
 
     rebuildPreparedParts();
-
-    const statusMsg =
-      state.parts.length === 1
-        ? 'Ảnh đã sẵn sàng gửi.'
-        : `Đã chuẩn bị ${state.parts.length} phần để gửi.`;
+    const statusMsg = state.parts.length === 1 ? 'Ảnh đã sẵn sàng gửi.' : `Đã chuẩn bị ${state.parts.length} phần để gửi.`;
     setStatus(true, 'Đã sẵn sàng gửi', statusMsg);
   } catch (error) {
     console.error(error);
@@ -669,9 +693,51 @@ async function processSelectedFiles(fileList, append = false) {
   } finally {
     els.photoInput.disabled = false;
     els.photoInput.value = '';
+    if (els.cameraInput) {
+      els.cameraInput.disabled = false;
+      els.cameraInput.value = '';
+    }
     if (els.addPhotosBtn) els.addPhotosBtn.disabled = false;
     state.addModeNextPick = false;
   }
+}
+
+function resetFormDefaults() {
+  const now = new Date();
+  els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  els.notes.value = 'Hình ảnh hiện trạng tài sản bảo đảm';
+}
+
+function clearImageData() {
+  state.originalFiles = [];
+  state.compressedFiles = [];
+  state.parts = [];
+  state.sendMode = 'compact';
+  rebuildPreparedParts();
+}
+
+function createNewCase() {
+  const keepOfficerName = els.officerName.value.trim();
+  const keepOfficerEmail = els.officerEmail.value.trim();
+  const keepRecipient = els.recipientEmail.value.trim();
+
+  document.getElementById('caseForm').reset();
+  resetFormDefaults();
+  els.officerName.value = keepOfficerName;
+  els.officerEmail.value = keepOfficerEmail;
+  els.recipientEmail.value = keepRecipient;
+  els.mapsLink.value = '';
+  setCaseCode();
+  clearImageData();
+  setStatus(true, 'Đã tạo hồ sơ mới', 'Bạn có thể nhập khách hàng tiếp theo ngay.');
+}
+
+function clearAll() {
+  document.getElementById('caseForm').reset();
+  resetFormDefaults();
+  setCaseCode();
+  clearImageData();
+  setStatus(true, 'Đã xóa toàn bộ', 'Dữ liệu hồ sơ và ảnh đã được làm trống.');
 }
 
 function syncGeneratedCode() {
@@ -679,28 +745,30 @@ function syncGeneratedCode() {
 }
 
 function initFormDefaults() {
-  const now = new Date();
-  els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  els.notes.value = 'Hình ảnh hiện trạng tài sản bảo đảm';
-  syncGeneratedCode();
+  resetFormDefaults();
+  setCaseCode();
 }
 
 function wireEvents() {
   els.regenCodeBtn.addEventListener('click', syncGeneratedCode);
   els.officerName.addEventListener('input', syncGeneratedCode);
 
-  if (els.getCurrentLocationBtn) {
-    els.getCurrentLocationBtn.addEventListener('click', () => {
-      fillCurrentLocationToMapsLink({ alsoOpen: false, alsoCopy: true });
+  if (els.getAssetLocationBtn) {
+    els.getAssetLocationBtn.addEventListener('click', fillAssetLocation);
+  }
+
+  if (els.pickLibraryBtn) {
+    els.pickLibraryBtn.addEventListener('click', () => {
+      state.addModeNextPick = state.compressedFiles.length > 0;
+      els.photoInput.click();
     });
   }
 
-  if (els.openMapsBtn) {
-    els.openMapsBtn.addEventListener('click', handleOpenMaps);
-  }
-
-  if (els.copyMapsLinkBtn) {
-    els.copyMapsLinkBtn.addEventListener('click', handleCopyMapsLink);
+  if (els.pickCameraBtn) {
+    els.pickCameraBtn.addEventListener('click', () => {
+      state.addModeNextPick = true;
+      els.cameraInput.click();
+    });
   }
 
   if (els.addPhotosBtn) {
@@ -710,12 +778,39 @@ function wireEvents() {
     });
   }
 
-  if (els.splitModeBtn) {
-    els.splitModeBtn.addEventListener('click', () => {
-      state.splitByCountMode = !state.splitByCountMode;
+  if (els.modeStableBtn) {
+    els.modeStableBtn.addEventListener('click', () => {
+      state.sendMode = 'stable';
       rebuildPreparedParts();
     });
   }
+
+  if (els.modeCompactBtn) {
+    els.modeCompactBtn.addEventListener('click', () => {
+      state.sendMode = 'compact';
+      rebuildPreparedParts();
+    });
+  }
+
+  if (els.newCaseBtn) {
+    els.newCaseBtn.addEventListener('click', createNewCase);
+  }
+
+  if (els.clearAllBtn) {
+    els.clearAllBtn.addEventListener('click', () => {
+      const ok = window.confirm('Bạn muốn xóa toàn bộ hồ sơ và ảnh hiện tại?');
+      if (ok) clearAll();
+    });
+  }
+
+  document.querySelectorAll('input[name="compressPreset"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      state.compressPreset = input.value;
+      if (state.compressedFiles.length) {
+        setStatus(true, 'Đã đổi chế độ nén', 'Chế độ mới áp dụng cho lần chọn/chụp ảnh tiếp theo.');
+      }
+    });
+  });
 
   [
     els.customerName,
@@ -730,8 +825,7 @@ function wireEvents() {
     input.addEventListener('input', () => {
       if (!state.compressedFiles.length) return;
       const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
-      const maxFiles = state.splitByCountMode ? RECOMMENDED_SPLIT_FILES : Number.POSITIVE_INFINITY;
-      state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES, maxFiles));
+      state.parts = buildMailParts(splitIntoParts(payload, SAFE_LIMIT_BYTES, state.sendMode));
       updateSummary();
       renderParts();
     });
@@ -740,11 +834,17 @@ function wireEvents() {
   els.photoInput.addEventListener('change', (event) => {
     processSelectedFiles(event.target.files || [], state.addModeNextPick);
   });
+
+  if (els.cameraInput) {
+    els.cameraInput.addEventListener('change', (event) => {
+      processSelectedFiles(event.target.files || [], true);
+    });
+  }
 }
 
 initFormDefaults();
 wireEvents();
 updateSummary();
-updateSplitModeButton();
+updateModeButtons();
 renderPreview();
 renderParts();

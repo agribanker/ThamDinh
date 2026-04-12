@@ -16,10 +16,14 @@ App chạy thuần static, nên chỉ cần mở URL GitHub Pages là dùng đư
 - Cảnh báo khi vượt ngưỡng gửi an toàn
 - Mặc định gộp 1 phần khi chưa vượt ngưỡng 17MB
 - Có thể bật tách nhỏ theo số ảnh để gửi ổn định hơn trên Android
+- Có popup xác nhận trước khi mở mail gửi từng phần
 - Chuẩn bị sẵn subject và body cho từng phần
 - Mở bảng chia sẻ của điện thoại để bàn giao sang Gmail, Outlook, Apple Mail hoặc ứng dụng mail khác
 - Fallback: copy subject/body và tải ảnh phần đó về máy nếu thiết bị không hỗ trợ share files
-- Lấy vị trí hiện tại, mở Google Maps và sao chép link map ngay trong form
+- 3 mức nén cố định: Rõ đẹp, Cân bằng (mặc định), Nén mạnh
+- Lấy vị trí tài sản và tự điền link Google Maps
+- Có chụp ảnh trực tiếp từ camera và chọn ảnh từ thư viện
+- Có tạo hồ sơ mới, xóa toàn bộ, xóa ảnh từng tấm và sắp xếp thứ tự ảnh
 
 ## Lưu ý
 
