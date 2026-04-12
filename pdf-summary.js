@@ -50,6 +50,34 @@
     });
   }
 
+  async function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Không chuyển được QR blob sang data URL.'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function fetchQrDataUrl(text) {
+    if (!text) return '';
+    const candidates = [buildQrImageUrl(text), buildQrFallbackImageUrl(text)];
+
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) continue;
+        const dataUrl = await blobToDataUrl(blob);
+        if (dataUrl) return dataUrl;
+      } catch {
+        // try next provider
+      }
+    }
+    return '';
+  }
+
   async function buildPhotoThumbs(files) {
     const maxThumbs = Math.min(files.length, 24);
     const result = [];
@@ -81,8 +109,7 @@
     const totalBytes = Number(payload?.totalBytes || 0);
 
     const mapLink = normalizeMapLink(form.mapsLink || '');
-    const qrImageUrl = buildQrImageUrl(mapLink);
-    const qrFallbackImageUrl = buildQrFallbackImageUrl(mapLink);
+    const qrDataUrl = await fetchQrDataUrl(mapLink);
 
     const tableRows = files
       .map(
@@ -168,8 +195,8 @@
       <div class="map-wrap">
         <div class="qr-box">
           ${
-            qrImageUrl
-              ? `<img src="${qrImageUrl}" alt="QR vị trí tài sản" onerror="this.onerror=null; this.src='${qrFallbackImageUrl}';" />`
+            qrDataUrl
+              ? `<img src="${qrDataUrl}" alt="QR vị trí tài sản" />`
               : `<div class="qr-empty">Chưa có link map</div>`
           }
         </div>
