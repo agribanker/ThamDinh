@@ -704,9 +704,19 @@ async function exportSummaryPdf() {
   win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(() => {
-    win.print();
-  }, 350);
+
+  const waitForImages = async () => {
+    const started = Date.now();
+    while (Date.now() - started < 8000) {
+      const images = Array.from(win.document.images || []);
+      const pending = images.some((img) => !img.complete);
+      if (!pending) return;
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+  };
+
+  await waitForImages();
+  win.print();
   setStatus(true, 'Đã mở chế độ in PDF', 'Chọn “Save as PDF” để tải biên bản.');
 }
 

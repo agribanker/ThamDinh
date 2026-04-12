@@ -36,6 +36,11 @@
     return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
   }
 
+  function buildQrFallbackImageUrl(text) {
+    if (!text) return '';
+    return `https://quickchart.io/qr?size=320&text=${encodeURIComponent(text)}`;
+  }
+
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -77,6 +82,7 @@
 
     const mapLink = normalizeMapLink(form.mapsLink || '');
     const qrImageUrl = buildQrImageUrl(mapLink);
+    const qrFallbackImageUrl = buildQrFallbackImageUrl(mapLink);
 
     const tableRows = files
       .map(
@@ -163,7 +169,7 @@
         <div class="qr-box">
           ${
             qrImageUrl
-              ? `<img src="${qrImageUrl}" alt="QR vị trí tài sản" />`
+              ? `<img src="${qrImageUrl}" alt="QR vị trí tài sản" onerror="this.onerror=null; this.src='${qrFallbackImageUrl}';" />`
               : `<div class="qr-empty">Chưa có link map</div>`
           }
         </div>
