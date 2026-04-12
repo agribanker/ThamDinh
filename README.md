@@ -15,7 +15,7 @@ App chạy thuần static, nên chỉ cần mở URL GitHub Pages là dùng đư
 - Tính tổng dung lượng sau nén
 - Cảnh báo khi vượt ngưỡng gửi an toàn
 - Mặc định gộp 1 phần khi chưa vượt ngưỡng 17MB
-- Có thể bật tách nhỏ theo số ảnh để gửi ổn định hơn trên Android
+- Tự tách nhỏ khi gần ngưỡng hoặc khi thiết bị chia sẻ không ổn định
 - Có popup xác nhận trước khi mở mail gửi từng phần
 - Chuẩn bị sẵn subject và body cho từng phần
 - Mở bảng chia sẻ của điện thoại để bàn giao sang Gmail, Outlook, Apple Mail hoặc ứng dụng mail khác
@@ -23,7 +23,7 @@ App chạy thuần static, nên chỉ cần mở URL GitHub Pages là dùng đư
 - 3 mức nén cố định: Rõ đẹp, Cân bằng (mặc định), Nén mạnh
 - Lấy vị trí tài sản và tự điền link Google Maps
 - Có chụp ảnh trực tiếp từ camera và chọn ảnh từ thư viện
-- Có tạo hồ sơ mới, xóa toàn bộ, xóa ảnh từng tấm và sắp xếp thứ tự ảnh
+- Có tạo hồ sơ mới, xóa toàn bộ và xóa ảnh từng tấm
 
 ## Lưu ý
 

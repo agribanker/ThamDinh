@@ -9,6 +9,9 @@
   </head>
   <body>
     <main class="shell">
+      <div class="warning hidden" id="messengerBanner">
+        Bạn đang mở trong Messenger. Một số tính năng vị trí hoặc mở mail có thể không ổn. Nên mở bằng Chrome để dùng đầy đủ.
+      </div>
       <header class="brand-hero card">
         <div class="brand-top">
           <div class="brand-lockup">
@@ -79,6 +82,7 @@
             <div class="map-actions">
               <button type="button" class="map-btn" id="getAssetLocationBtn">Lấy vị trí tài sản</button>
             </div>
+            <div class="map-status" id="mapStatus"></div>
           </label>
           <label>
             <span>Ngày thẩm định</span>
@@ -178,10 +182,6 @@
         </div>
 
         <div class="warning hidden" id="limitWarning"></div>
-        <div class="mode-switch">
-          <button type="button" class="ghost-btn mode-btn" id="modeStableBtn">Chế độ ổn định</button>
-          <button type="button" class="ghost-btn mode-btn" id="modeCompactBtn">Chế độ gọn</button>
-        </div>
       </section>
 
       <section class="card parts-card">
