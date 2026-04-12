@@ -122,12 +122,10 @@
     const photoBlocks = thumbs
       .map((item) => {
         const imgTag = item.url
-          ? `<img src="${item.url}" alt="${escapeHtml(item.name)}" />`
+          ? `<img src="${item.url}" alt="Ảnh ${item.index}" />`
           : `<div class="thumb-missing">Không đọc được ảnh</div>`;
         return `<article class="photo-item">
   <div class="photo-frame">${imgTag}</div>
-  <div class="photo-caption">${item.index}. ${escapeHtml(item.name)}</div>
-  <div class="photo-size">${item.sizeText}</div>
 </article>`;
       })
       .join('');
@@ -174,7 +172,7 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Biên bản tóm tắt hồ sơ thẩm định</h1>
+    <h1>Hình ảnh thực tế</h1>
     <div class="sub">Mã hồ sơ: ${escapeHtml(form.caseCode || '')}</div>
 
     <section class="block">
@@ -183,15 +181,13 @@
         <div><span class="label">Ngày thẩm định:</span> ${escapeHtml(toDisplayDate(form.assessmentDate) || '')}</div>
         <div><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</div>
         <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
-        <div><span class="label">Email người nhận:</span> ${escapeHtml(form.recipientEmail || '')}</div>
-        <div><span class="label">Email CBTD:</span> ${escapeHtml(form.officerEmail || '')}</div>
         <div class="full"><span class="label">Link map:</span> ${escapeHtml(mapLink || '')}</div>
         <div class="full"><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</div>
       </div>
     </section>
 
     <section class="block">
-      <h2>QR vị trí tài sản</h2>
+      <h2>Mã QR tài sản</h2>
       <div class="map-wrap">
         <div class="qr-box">
           ${
@@ -200,27 +196,15 @@
               : `<div class="qr-empty">Chưa có link map</div>`
           }
         </div>
-        <div>
-          <div class="label">Nội dung QR</div>
-          <div class="map-link">${escapeHtml(mapLink || 'Chưa có link vị trí')}</div>
-          <p class="muted">QR lấy trực tiếp từ ô Link Google Maps, hỗ trợ cả link rút gọn từ Google Maps/Zalo.</p>
-        </div>
       </div>
     </section>
 
     <section class="block">
-      <h2>Ảnh đính kèm (${files.length} ảnh, ${formatMb(totalBytes)})</h2>
+      <h2>Ảnh đính kèm (${files.length} ảnh)</h2>
       <div class="photos">${photoBlocks}</div>
       ${extraText}
     </section>
 
-    <section class="block page-break">
-      <h2>Danh sách ảnh chi tiết</h2>
-      <table>
-        <thead><tr><th>#</th><th>Tên ảnh</th><th>Dung lượng</th></tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </section>
   </div>
 </body>
 </html>`;
