@@ -32,7 +32,6 @@ const state = {
   originalFiles: [],
   compressedFiles: [],
   parts: [],
-  isProcessing: false,
   currentCaseCode: '',
   previewUrls: []
 };
@@ -496,7 +495,11 @@ async function sharePart(part) {
   }
 
   await copyPartText(part);
-  downloadPart(part);
+  setStatus(
+    true,
+    'Đã copy nội dung phần gửi',
+    'Nếu máy không hỗ trợ chia sẻ file trực tiếp, hãy dùng nút Tải dự phòng để tải ảnh và file nội dung.'
+  );
 }
 
 async function processSelectedFiles(fileList) {
@@ -510,7 +513,6 @@ async function processSelectedFiles(fileList) {
     return;
   }
 
-  state.isProcessing = true;
   setStatus(true, 'Đang xử lý ảnh...', 'Đang nén ảnh và chuẩn bị phần gửi.');
   els.photoInput.disabled = true;
 
@@ -553,7 +555,6 @@ async function processSelectedFiles(fileList) {
     console.error(error);
     setStatus(true, 'Xử lý ảnh thất bại', error.message || 'Có lỗi khi nén ảnh.');
   } finally {
-    state.isProcessing = false;
     els.photoInput.disabled = false;
     els.photoInput.value = '';
   }
