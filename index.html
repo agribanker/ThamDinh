@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>Thẩm định tài sản - xử lý ảnh gửi mail</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+    <main class="shell">
+      <header class="hero card">
+        <div class="eyebrow">CBTD nội bộ</div>
+        <h1>Thẩm định tài sản</h1>
+        <p>
+          Nhập hồ sơ, chọn ảnh, nén tự động, chia phần an toàn và mở ứng dụng mail trên điện thoại
+          để gửi lần lượt.
+        </p>
+        <div class="hero-metrics">
+          <div>
+            <span class="metric-label">Ngưỡng an toàn</span>
+            <strong>17 MB</strong>
+          </div>
+          <div>
+            <span class="metric-label">Xử lý</span>
+            <strong>Ngay trên máy</strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="card form-card">
+        <div class="section-head">
+          <div>
+            <h2>1. Thông tin hồ sơ</h2>
+            <p>Tự sinh mã hồ sơ, tối ưu cho thao tác nhanh trên điện thoại.</p>
+          </div>
+          <button type="button" class="ghost-btn" id="regenCodeBtn">Đổi mã</button>
+        </div>
+
+        <form id="caseForm" class="form-grid" autocomplete="off">
+          <label>
+            <span>Mã hồ sơ</span>
+            <input id="caseCode" name="caseCode" type="text" readonly />
+          </label>
+          <label>
+            <span>Tên khách hàng</span>
+            <input id="customerName" name="customerName" type="text" placeholder="Nguyễn Văn A" />
+          </label>
+          <label class="full">
+            <span>Địa chỉ tài sản</span>
+            <input id="assetAddress" name="assetAddress" type="text" placeholder="123 Lê Lợi, quận..." />
+          </label>
+          <label class="full">
+            <span>Link Google Maps của tài sản nếu có</span>
+            <input id="mapsLink" name="mapsLink" type="url" placeholder="https://maps.google.com/..." />
+          </label>
+          <label>
+            <span>Ngày thẩm định</span>
+            <input id="assessmentDate" name="assessmentDate" type="date" />
+          </label>
+          <label>
+            <span>Ghi chú</span>
+            <input id="notes" name="notes" type="text" placeholder="Hình ảnh hiện trạng tài sản bảo đảm" />
+          </label>
+          <label>
+            <span>Email người nhận</span>
+            <input id="recipientEmail" name="recipientEmail" type="email" placeholder="recipient@agribank.com" />
+          </label>
+          <label>
+            <span>Tên CBTD</span>
+            <input id="officerName" name="officerName" type="text" placeholder="Đặng Phúc" />
+          </label>
+          <label class="full">
+            <span>Email CBTD</span>
+            <input id="officerEmail" name="officerEmail" type="email" placeholder="phuc@agribank.com" />
+          </label>
+        </form>
+      </section>
+
+      <section class="card upload-card">
+        <div class="section-head">
+          <div>
+            <h2>2. Chọn ảnh</h2>
+            <p>Hỗ trợ chọn nhiều ảnh cùng lúc, xem preview và dung lượng gốc ngay lập tức.</p>
+          </div>
+        </div>
+
+        <label class="upload-zone" for="photoInput">
+          <input id="photoInput" type="file" accept="image/*" multiple />
+          <div class="upload-copy">
+            <strong>Chọn nhiều ảnh từ điện thoại</strong>
+            <span>Chạm để mở thư viện ảnh hoặc camera</span>
+          </div>
+        </label>
+
+        <div class="stats-row" id="originalStats">
+          <div class="stat-pill">
+            <span>Số ảnh</span>
+            <strong id="originalCount">0</strong>
+          </div>
+          <div class="stat-pill">
+            <span>Tổng dung lượng gốc</span>
+            <strong id="originalSize">0 MB</strong>
+          </div>
+        </div>
+
+        <div class="status-card hidden" id="statusCard">
+          <div class="status-title" id="statusTitle">Đang xử lý ảnh...</div>
+          <div class="status-desc" id="statusDesc">Chờ hệ thống nén và chia phần.</div>
+        </div>
+
+        <div class="preview-grid" id="previewGrid"></div>
+      </section>
+
+      <section class="card result-card">
+        <div class="section-head">
+          <div>
+            <h2>3. Kết quả nén và chia phần</h2>
+            <p>Hệ thống sẽ cảnh báo khi vượt ngưỡng gửi an toàn và tự chia thành nhiều phần phù hợp.</p>
+          </div>
+        </div>
+
+        <div class="result-summary" id="resultSummary">
+          <div class="summary-tile">
+            <span>Tổng dung lượng sau nén</span>
+            <strong id="compressedSize">0 MB</strong>
+          </div>
+          <div class="summary-tile">
+            <span>Trạng thái</span>
+            <strong id="limitStatus">Chưa có ảnh</strong>
+          </div>
+          <div class="summary-tile">
+            <span>Số phần</span>
+            <strong id="partCount">0</strong>
+          </div>
+        </div>
+
+        <div class="warning hidden" id="limitWarning"></div>
+      </section>
+
+      <section class="card parts-card">
+        <div class="section-head">
+          <div>
+            <h2>4. Gửi từng phần</h2>
+            <p>Mỗi phần có subject và body riêng để người dùng gửi lần lượt qua ứng dụng mail.</p>
+          </div>
+        </div>
+
+        <div class="parts-list" id="partsList"></div>
+      </section>
+    </main>
+
+    <template id="partTemplate">
+      <article class="part-card">
+        <div class="part-head">
+          <div>
+            <h3 class="part-title"></h3>
+            <p class="part-meta"></p>
+          </div>
+          <span class="part-badge"></span>
+        </div>
+
+        <div class="part-actions">
+          <button type="button" class="primary-btn share-btn">Gửi phần</button>
+          <button type="button" class="secondary-btn copy-btn">Copy subject + body</button>
+          <button type="button" class="tertiary-btn download-btn">Tải dự phòng</button>
+        </div>
+
+        <details class="part-details">
+          <summary>Xem nội dung chuẩn bị sẵn</summary>
+          <pre class="part-preview"></pre>
+        </details>
+      </article>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

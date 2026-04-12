@@ -1,0 +1,10 @@
+{
+  "name": "app-tham-dinh",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Web app noi bo mobile-first cho CBTD tham dinh tai san",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  }
+}
