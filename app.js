@@ -2,6 +2,7 @@
 const NEAR_LIMIT_BYTES = 16.5 * 1024 * 1024;
 const STABLE_MAX_FILES_PER_PART = 6;
 const STABLE_MAX_BYTES_PER_PART = 10 * 1024 * 1024;
+const DEVICE_SAFE_FILES_PER_SHARE = 8;
 
 const els = {
   caseCode: document.getElementById('caseCode'),
@@ -20,6 +21,7 @@ const els = {
   pickLibraryBtn: document.getElementById('pickLibraryBtn'),
   pickCameraBtn: document.getElementById('pickCameraBtn'),
   addPhotosBtn: document.getElementById('addPhotosBtn'),
+  imageHints: document.getElementById('imageHints'),
   originalCount: document.getElementById('originalCount'),
   originalSize: document.getElementById('originalSize'),
   compressedSize: document.getElementById('compressedSize'),
@@ -34,6 +36,7 @@ const els = {
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
   clearAllBtn: document.getElementById('clearAllBtn'),
+  exportPdfBtn: document.getElementById('exportPdfBtn'),
   messengerBanner: document.getElementById('messengerBanner')
 };
 
@@ -47,7 +50,8 @@ const state = {
   previewUrls: [],
   addModeNextPick: false,
   compressPreset: 'balanced',
-  autoMode: 'compact'
+  autoMode: 'compact',
+  deviceShareLimited: false
 };
 
 function stripAccents(value) {
@@ -128,6 +132,118 @@ function setWarning(message) {
   }
   els.limitWarning.textContent = message;
   els.limitWarning.classList.remove('hidden');
+}
+
+function setImageHints(messages = []) {
+  if (!els.imageHints) return;
+  if (!messages.length) {
+    els.imageHints.textContent = '';
+    els.imageHints.classList.add('hidden');
+    return;
+  }
+
+  els.imageHints.innerHTML = messages.map((msg) => `• ${escapeHtml(msg)}`).join('<br>');
+  els.imageHints.classList.remove('hidden');
+}
+
+function simpleHash(bytes) {
+  let h = 2166136261;
+  for (let i = 0; i < bytes.length; i += 1) {
+    h ^= bytes[i];
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+async function buildQuickSignature(file) {
+  const chunk = 16 * 1024;
+  const first = new Uint8Array(await file.slice(0, chunk).arrayBuffer());
+  const startTail = Math.max(0, file.size - chunk);
+  const last = new Uint8Array(await file.slice(startTail, file.size).arrayBuffer());
+  return `${file.size}:${simpleHash(first)}:${simpleHash(last)}`;
+}
+
+async function getImageDimensions(file) {
+  const image = await readFileAsImage(file);
+  const width = image.naturalWidth || image.width || 0;
+  const height = image.naturalHeight || image.height || 0;
+  if (typeof image.close === 'function') image.close();
+  return { width, height };
+}
+
+async function analyzeImageHints(files) {
+  if (!files.length) return [];
+
+  const hints = [];
+  const nameAndSizeMap = new Map();
+  const signatureMap = new Map();
+  const tinyFiles = [];
+  const suspiciousSmallLargeDims = [];
+
+  for (const file of files) {
+    const nameAndSizeKey = `${file.name.toLowerCase()}|${file.size}`;
+    nameAndSizeMap.set(nameAndSizeKey, (nameAndSizeMap.get(nameAndSizeKey) || 0) + 1);
+    if (file.size < 100 * 1024) tinyFiles.push(file);
+  }
+
+  for (const file of files) {
+    const signature = await buildQuickSignature(file);
+    const list = signatureMap.get(signature) || [];
+    list.push(file.name);
+    signatureMap.set(signature, list);
+  }
+
+  const dimsLimit = Math.min(files.length, 16);
+  for (let i = 0; i < dimsLimit; i += 1) {
+    const file = files[i];
+    try {
+      const dims = await getImageDimensions(file);
+      if (Math.max(dims.width, dims.height) >= 1400 && file.size < 130 * 1024) {
+        suspiciousSmallLargeDims.push(file.name);
+      }
+    } catch {
+      // Ignore dimension read errors for hint analysis.
+    }
+  }
+
+  let duplicatedByNameSize = 0;
+  nameAndSizeMap.forEach((count) => {
+    if (count > 1) duplicatedByNameSize += count - 1;
+  });
+  if (duplicatedByNameSize > 0) {
+    hints.push(`Có ${duplicatedByNameSize} ảnh trùng tên + dung lượng, nên kiểm tra và xóa bớt.`);
+  }
+
+  let duplicatedBySignature = 0;
+  signatureMap.forEach((arr) => {
+    if (arr.length > 1) duplicatedBySignature += arr.length - 1;
+  });
+  if (duplicatedBySignature > 0) {
+    hints.push(`Có ${duplicatedBySignature} ảnh có nội dung rất giống nhau (hash gần trùng).`);
+  }
+
+  if (tinyFiles.length > 0) {
+    hints.push(`Có ${tinyFiles.length} ảnh dung lượng rất nhỏ (<100KB), nên kiểm tra ảnh mờ/thiếu chi tiết.`);
+  }
+
+  if (suspiciousSmallLargeDims.length > 0) {
+    hints.push(`Có ${suspiciousSmallLargeDims.length} ảnh độ phân giải lớn nhưng dung lượng quá thấp, nên xem lại chất lượng.`);
+  }
+
+  return hints;
+}
+
+async function refreshImageHints() {
+  if (!state.compressedFiles.length) {
+    setImageHints([]);
+    return;
+  }
+  try {
+    const hints = await analyzeImageHints(state.compressedFiles);
+    setImageHints(hints);
+  } catch {
+    setImageHints([]);
+  }
 }
 
 function setMapStatus(message, type = 'success') {
@@ -339,6 +455,7 @@ function getTotalCompressedBytes() {
 }
 
 function chooseAutoMode(totalBytes) {
+  if (state.deviceShareLimited) return 'stable';
   if (totalBytes >= NEAR_LIMIT_BYTES) return 'stable';
   return 'compact';
 }
@@ -376,7 +493,11 @@ function updateSummary() {
 
   if (state.autoMode === 'stable' && state.parts.length > 1) {
     els.limitStatus.textContent = `Đã chia ${state.parts.length} phần (ổn định)`;
-    setWarning('Gần ngưỡng hoặc thiết bị chia sẻ không ổn định, hệ thống tự tách nhỏ để gửi dễ hơn.');
+    if (compressedBytes >= NEAR_LIMIT_BYTES) {
+      setWarning('Gần ngưỡng gửi an toàn, hệ thống tự tách nhỏ để gửi dễ hơn.');
+    } else {
+      setWarning('Thiết bị giới hạn chia sẻ nhiều ảnh một lần, hệ thống đã tách nhỏ để mở mail ổn định hơn.');
+    }
     return;
   }
 
@@ -464,12 +585,37 @@ function removeImageAt(index) {
   state.compressedFiles.splice(index, 1);
   if (index < state.originalFiles.length) state.originalFiles.splice(index, 1);
   rebuildPreparedParts();
+  refreshImageHints();
   setStatus(true, 'Đã xóa 1 ảnh', 'Đã cập nhật lại dung lượng và phần gửi.');
 }
 
 function canShareFiles(files) {
   if (!navigator.share || !navigator.canShare) return false;
   return navigator.canShare({ files });
+}
+
+function cloneFilesForShare(files) {
+  return files.map((file, idx) =>
+    new File([file], file.name || `photo_${idx + 1}.jpg`, {
+      type: file.type || 'image/jpeg',
+      lastModified: Date.now()
+    })
+  );
+}
+
+function forceSplitForDeviceShare() {
+  if (!state.compressedFiles.length) return false;
+  const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
+  const forcedParts = buildMailParts(splitIntoParts(payload, 'stable'));
+  if (forcedParts.length <= state.parts.length) return false;
+
+  state.deviceShareLimited = true;
+  state.autoMode = 'stable';
+  state.parts = forcedParts;
+  updateSummary();
+  renderParts();
+  setWarning('Thiết bị giới hạn số ảnh/lần chia sẻ. Hệ thống đã tự chia nhỏ để mở mail ổn định hơn.');
+  return true;
 }
 
 async function copyText(text) {
@@ -530,6 +676,76 @@ function downloadPart(part) {
   setStatus(true, 'Đã tạo bộ tải dự phòng', 'Nếu chia sẻ trực tiếp lỗi, hãy gửi thủ công bằng ảnh đã tải + nội dung đã copy.');
 }
 
+function buildPdfSummaryHtml(form, files) {
+  const rows = files
+    .map(
+      (file, idx) =>
+        `<tr><td>${idx + 1}</td><td>${escapeHtml(file.name)}</td><td>${formatBytes(file.size)}</td></tr>`
+    )
+    .join('');
+
+  return `<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tom tat ho so ${escapeHtml(form.caseCode || '')}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #222; margin: 24px; }
+    h1 { margin: 0 0 8px; color: #a71d3f; }
+    .sub { margin-bottom: 16px; color: #555; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-bottom: 16px; }
+    .label { font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #d8d8d8; padding: 8px; text-align: left; }
+    th { background: #f5f2f2; }
+  </style>
+</head>
+<body>
+  <h1>Biên bản tóm tắt hồ sơ thẩm định</h1>
+  <div class="sub">Mã hồ sơ: ${escapeHtml(form.caseCode || '')}</div>
+  <div class="grid">
+    <div><span class="label">Khách hàng:</span> ${escapeHtml(form.customerName || '')}</div>
+    <div><span class="label">Ngày thẩm định:</span> ${escapeHtml(formatDateForDisplay(form.assessmentDate) || '')}</div>
+    <div><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</div>
+    <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
+    <div><span class="label">Email người nhận:</span> ${escapeHtml(form.recipientEmail || '')}</div>
+    <div><span class="label">Email CBTD:</span> ${escapeHtml(form.officerEmail || '')}</div>
+    <div style="grid-column: 1 / -1;"><span class="label">Link map:</span> ${escapeHtml(form.mapsLink || '')}</div>
+    <div style="grid-column: 1 / -1;"><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</div>
+  </div>
+  <h2>Danh sách ảnh (${files.length} ảnh, ${formatBytes(getTotalCompressedBytes())})</h2>
+  <table>
+    <thead><tr><th>#</th><th>Tên ảnh</th><th>Dung lượng</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body>
+</html>`;
+}
+
+function exportSummaryPdf() {
+  if (!state.compressedFiles.length) {
+    setStatus(true, 'Chưa có ảnh để xuất PDF', 'Vui lòng chọn ảnh trước khi xuất biên bản tóm tắt.');
+    return;
+  }
+
+  const form = collectFormData();
+  const html = buildPdfSummaryHtml(form, state.compressedFiles);
+  const win = window.open('', '_blank');
+  if (!win) {
+    setStatus(true, 'Trình duyệt chặn popup', 'Hãy bật popup để xuất PDF.');
+    return;
+  }
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => {
+    win.print();
+  }, 350);
+  setStatus(true, 'Đã mở chế độ in PDF', 'Chọn “Save as PDF” để tải biên bản.');
+}
+
 function buildShareConfirmMessage(part) {
   return `Bạn sắp mở mail để gửi Phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
 }
@@ -538,18 +754,25 @@ async function sharePart(part) {
   const ok = window.confirm(buildShareConfirmMessage(part));
   if (!ok) return;
 
-  const files = part.files.map((file, idx) =>
-    new File([file], file.name || `photo_${idx + 1}.jpg`, {
-      type: file.type || 'image/jpeg',
-      lastModified: Date.now()
-    })
-  );
+  const files = cloneFilesForShare(part.files);
 
   const shareData = {
     title: part.subject,
     text: `${part.subject}\n\n${part.body}`,
     files
   };
+
+  if (!canShareFiles(files) && files.length > DEVICE_SAFE_FILES_PER_SHARE) {
+    const wasSplit = forceSplitForDeviceShare();
+    if (wasSplit) {
+      setStatus(
+        true,
+        'Thiết bị không mở mail với nhiều ảnh cùng lúc',
+        'Đã tự chia nhỏ phần gửi theo chế độ ổn định. Bạn bấm gửi lại từng phần.'
+      );
+      return;
+    }
+  }
 
   if (canShareFiles(files)) {
     try {
@@ -561,6 +784,18 @@ async function sharePart(part) {
         setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
         return;
       }
+    }
+  }
+
+  if (!canShareFiles(files) && files.length > 1) {
+    const wasSplit = forceSplitForDeviceShare();
+    if (wasSplit) {
+      setStatus(
+        true,
+        'Thiết bị giới hạn số file đính kèm',
+        'Đã chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
+      );
+      return;
     }
   }
 
@@ -665,8 +900,10 @@ async function processSelectedFiles(fileList, append = false) {
       state.originalFiles = incoming.slice();
       state.compressedFiles = compressed;
     }
+    state.deviceShareLimited = false;
 
     rebuildPreparedParts();
+    await refreshImageHints();
 
     const totalBytes = getTotalCompressedBytes();
     if (totalBytes > SAFE_LIMIT_BYTES) {
@@ -700,7 +937,9 @@ function clearImageData() {
   state.originalFiles = [];
   state.compressedFiles = [];
   state.parts = [];
+  state.deviceShareLimited = false;
   rebuildPreparedParts();
+  setImageHints([]);
 }
 
 function createNewCase() {
@@ -773,6 +1012,10 @@ function wireEvents() {
       const ok = window.confirm('Bạn muốn xóa toàn bộ hồ sơ và ảnh hiện tại?');
       if (ok) clearAll();
     });
+  }
+
+  if (els.exportPdfBtn) {
+    els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
   }
 
   document.querySelectorAll('input[name="compressPreset"]').forEach((input) => {
