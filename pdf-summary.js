@@ -152,7 +152,7 @@
     table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
     th, td { border: 1px solid #d8d8d8; padding: 6px; text-align: left; vertical-align: top; }
     th { background: #f5f3f3; }
-    .photos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .photo-item { border: 1px solid #dddddd; border-radius: 10px; overflow: hidden; background: #fff; }
     .photo-frame { aspect-ratio: 4 / 3; background: #f4f4f4; display: grid; place-items: center; }
     .photo-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -179,6 +179,7 @@
       <div class="grid">
         <div><span class="label">Khách hàng:</span> ${escapeHtml(form.customerName || '')}</div>
         <div><span class="label">Ngày thẩm định:</span> ${escapeHtml(toDisplayDate(form.assessmentDate) || '')}</div>
+        <div><span class="label">Địa chỉ khách hàng:</span> ${escapeHtml(form.customerAddress || '')}</div>
         <div><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</div>
         <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
         <div class="full"><span class="label">Link map:</span> ${escapeHtml(mapLink || '')}</div>

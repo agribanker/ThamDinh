@@ -7,6 +7,7 @@ const DEVICE_SAFE_FILES_PER_SHARE = 8;
 const els = {
   caseCode: document.getElementById('caseCode'),
   customerName: document.getElementById('customerName'),
+  customerAddress: document.getElementById('customerAddress'),
   assetAddress: document.getElementById('assetAddress'),
   mapsLink: document.getElementById('mapsLink'),
   mapStatus: document.getElementById('mapStatus'),
@@ -49,7 +50,6 @@ const state = {
   currentCaseCode: '',
   previewUrls: [],
   addModeNextPick: false,
-  compressPreset: 'balanced',
   autoMode: 'compact',
   deviceShareLimited: false
 };
@@ -261,6 +261,7 @@ function collectFormData() {
   return {
     caseCode: els.caseCode.value.trim(),
     customerName: els.customerName.value.trim(),
+    customerAddress: els.customerAddress.value.trim(),
     assetAddress: els.assetAddress.value.trim(),
     mapsLink: els.mapsLink.value.trim(),
     assessmentDate: els.assessmentDate.value,
@@ -332,12 +333,7 @@ function renderCompressedBlob(image, maxEdge, quality) {
 }
 
 function getPresetConfig() {
-  if (state.compressPreset === 'high') {
-    return { maxEdge: 2200, quality: 0.86, targetBytes: 2.2 * 1024 * 1024, minEdge: 1400, minQuality: 0.68 };
-  }
-  if (state.compressPreset === 'strong') {
-    return { maxEdge: 1500, quality: 0.7, targetBytes: 0.9 * 1024 * 1024, minEdge: 1000, minQuality: 0.5 };
-  }
+  // Fixed to balanced mode for stable field usage.
   return { maxEdge: 1920, quality: 0.8, targetBytes: 1.4 * 1024 * 1024, minEdge: 1080, minQuality: 0.58 };
 }
 
@@ -425,6 +421,7 @@ function buildMailParts(parts) {
       `Email người nhận: ${form.recipientEmail || ''}`,
       '',
       `Khách hàng: ${form.customerName || ''}`,
+      `Địa chỉ khách hàng: ${form.customerAddress || ''}`,
       `Địa chỉ TSĐB: ${form.assetAddress || ''}`,
       `Link map: ${form.mapsLink || ''}`,
       `Ngày thẩm định: ${formatDateForDisplay(form.assessmentDate) || ''}`,
@@ -487,7 +484,7 @@ function updateSummary() {
 
   if (compressedBytes > SAFE_LIMIT_BYTES) {
     els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
-    setWarning('Dung lượng vượt ngưỡng gửi an toàn. Hãy xóa bớt ảnh hoặc chuyển sang Nén mạnh rồi thử lại.');
+    setWarning('Dung lượng vượt ngưỡng gửi an toàn. Hãy xóa bớt ảnh rồi thử lại.');
     return;
   }
 
@@ -881,7 +878,7 @@ async function fillAssetLocation() {
 
 function isMessengerInAppBrowser() {
   const ua = navigator.userAgent || '';
-  return /FBAN|FBAV|Messenger/i.test(ua);
+  return /FBAN|FBAV|Messenger|Zalo/i.test(ua);
 }
 
 async function processSelectedFiles(fileList, append = false) {
@@ -921,7 +918,7 @@ async function processSelectedFiles(fileList, append = false) {
 
     const totalBytes = getTotalCompressedBytes();
     if (totalBytes > SAFE_LIMIT_BYTES) {
-      setStatus(true, 'Ảnh vượt ngưỡng gửi an toàn', 'Bạn nên xóa bớt ảnh hoặc chọn Nén mạnh rồi thử lại.');
+      setStatus(true, 'Ảnh vượt ngưỡng gửi an toàn', 'Bạn nên xóa bớt ảnh rồi thử lại.');
     } else {
       setStatus(true, 'Đã sẵn sàng gửi', state.parts.length === 1 ? 'Ảnh đã sẵn sàng gửi.' : `Đã chuẩn bị ${state.parts.length} phần để gửi.`);
     }
@@ -1032,17 +1029,9 @@ function wireEvents() {
     els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
   }
 
-  document.querySelectorAll('input[name="compressPreset"]').forEach((input) => {
-    input.addEventListener('change', () => {
-      state.compressPreset = input.value;
-      if (state.compressedFiles.length) {
-        setStatus(true, 'Đã đổi chế độ nén', 'Chế độ mới áp dụng cho lần chọn/chụp ảnh tiếp theo.');
-      }
-    });
-  });
-
   [
     els.customerName,
+    els.customerAddress,
     els.assetAddress,
     els.mapsLink,
     els.assessmentDate,

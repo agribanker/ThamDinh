@@ -10,7 +10,7 @@
   <body>
     <main class="shell">
       <div class="warning hidden" id="messengerBanner">
-        Bạn đang mở trong Messenger. Một số tính năng vị trí hoặc mở mail có thể không ổn. Nên mở bằng Chrome để dùng đầy đủ.
+        Bạn đang mở trong Messenger hoặc Zalo. Một số tính năng vị trí hoặc mở mail có thể không ổn. Nên mở bằng Chrome để dùng đầy đủ.
       </div>
       <header class="brand-hero card">
         <div class="brand-top">
@@ -28,29 +28,17 @@
             </div>
             <div class="brand-copy">
               <div class="brand-name">AGRIBANK</div>
-              <div class="brand-sub">Thẩm định tài sản nội bộ</div>
+              <div class="brand-sub">CHI NHÁNH BẮC LONG AN</div>
             </div>
           </div>
-          <div class="brand-chip">Mobile-first</div>
+          <div class="brand-chip">Nội bộ</div>
         </div>
 
-        <div class="hero-copy">
-          <div class="eyebrow">CBTD nội bộ</div>
+        <div class="hero-copy compact-hero">
           <h1>Thẩm định tài sản</h1>
           <p>
-            Nhập hồ sơ, chọn ảnh, nén tự động, cảnh báo khi vượt ngưỡng và chuẩn bị sẵn từng phần để gửi qua ứng dụng mail.
+            Nhập thông tin, chọn ảnh, hệ thống xử lý tự động và gửi qua mail.
           </p>
-        </div>
-
-        <div class="hero-metrics">
-          <div>
-            <span class="metric-label">Ngưỡng an toàn</span>
-            <strong>17 MB</strong>
-          </div>
-          <div>
-            <span class="metric-label">Xử lý</span>
-            <strong>Ngay trên máy</strong>
-          </div>
         </div>
       </header>
 
@@ -72,6 +60,10 @@
             <span>Tên khách hàng</span>
             <input id="customerName" name="customerName" type="text" placeholder="Nguyễn Văn A" />
           </label>
+          <label>
+            <span>Địa chỉ khách hàng</span>
+            <input id="customerAddress" name="customerAddress" type="text" placeholder="Số nhà, đường, xã/phường..." />
+          </label>
           <label class="full">
             <span>Địa chỉ tài sản</span>
             <input id="assetAddress" name="assetAddress" type="text" placeholder="123 Lê Lợi, quận..." />
@@ -82,6 +74,7 @@
             <div class="map-actions">
               <button type="button" class="map-btn" id="getAssetLocationBtn">Lấy vị trí tài sản</button>
             </div>
+            <div class="map-helper">Hoặc sao chép địa chỉ từ trang https://maps.google.com/</div>
             <div class="map-status" id="mapStatus"></div>
           </label>
           <label>
@@ -126,15 +119,6 @@
           <div class="picker-actions">
             <button type="button" class="secondary-btn" id="pickLibraryBtn">Chọn từ thư viện</button>
             <button type="button" class="tertiary-btn" id="pickCameraBtn">Chụp ảnh</button>
-          </div>
-        </div>
-
-        <div class="quality-card">
-          <div class="quality-title">Chất lượng nén</div>
-          <div class="quality-options">
-            <label><input type="radio" name="compressPreset" value="high" /> Rõ đẹp</label>
-            <label><input type="radio" name="compressPreset" value="balanced" checked /> Cân bằng (Thông minh)</label>
-            <label><input type="radio" name="compressPreset" value="strong" /> Nén mạnh</label>
           </div>
         </div>
 
