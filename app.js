@@ -379,7 +379,7 @@ function buildMailParts(parts) {
     }`;
 
     const body = [
-      `Mã hồ sơ: ${form.caseCode}`,
+      `Mã khách hàng: ${form.caseCode}`,
       '',
       `Khách hàng: ${form.customerName || ''}`,
       `Địa chỉ khách hàng: ${form.customerAddress || ''}`,
@@ -487,7 +487,7 @@ function makePreviewItem(file, index) {
 
   const meta = document.createElement('div');
   meta.className = 'preview-meta';
-  meta.innerHTML = `<strong>${escapeHtml(shortenFileName(file.name))}</strong><br>${formatBytes(file.size)}`;
+  meta.innerHTML = `<strong>${escapeHtml(shortenFileName(file.name))}</strong>`;
 
   wrapper.appendChild(media);
   wrapper.appendChild(meta);

@@ -116,15 +116,7 @@
       })
       .join('');
 
-    const tableRows = files
-      .map(
-        (file, idx) =>
-          `<tr><td>${idx + 1}</td><td>${escapeHtml(file.name)}</td><td>${formatMb(file.size)}</td></tr>`
-      )
-      .join('');
-
-    const extraText =
-      files.length > thumbs.length ? `<p class="muted">+ ${files.length - thumbs.length} ảnh còn lại ở bảng danh sách.</p>` : '';
+    const extraText = files.length > thumbs.length ? `<p class="muted">+ ${files.length - thumbs.length} ảnh còn lại.</p>` : '';
 
     return `<!doctype html>
 <html lang="vi">
@@ -155,18 +147,12 @@
     .photo-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .thumb-missing { font-size: 12px; color: #666; padding: 8px; text-align: center; }
     .muted { color: #666; font-size: 12px; margin-top: 6px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
-    th, td { border: 1px solid #d8d8d8; padding: 6px; text-align: left; vertical-align: top; }
-    th { background: #f5f3f3; }
-    @media print {
-      .page-break { break-before: page; }
-    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Hình ảnh thực tế</h1>
-    <div class="sub">Mã hồ sơ: ${escapeHtml(form.caseCode || '')}</div>
+    <div class="sub">Mã khách hàng: ${escapeHtml(form.caseCode || '')}</div>
 
     <section class="block">
       <div class="info-wrap">
@@ -198,13 +184,6 @@
       ${extraText}
     </section>
 
-    <section class="block page-break">
-      <h2>Danh sách ảnh chi tiết</h2>
-      <table>
-        <thead><tr><th>#</th><th>Tên ảnh</th><th>Dung lượng</th></tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </section>
   </div>
 </body>
 </html>`;
