@@ -25,18 +25,16 @@
     const value = String(raw || '').trim();
     if (!value) return '';
     if (/^https?:\/\//i.test(value)) return value;
-    if (/^(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.com\/maps)/i.test(value)) {
-      return `https://${value}`;
-    }
+    if (/^(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.com\/maps)/i.test(value)) return `https://${value}`;
     return value;
   }
 
-  function buildQrImageUrl(text) {
+  function buildQrUrlMain(text) {
     if (!text) return '';
     return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
   }
 
-  function buildQrFallbackImageUrl(text) {
+  function buildQrUrlFallback(text) {
     if (!text) return '';
     return `https://quickchart.io/qr?size=320&text=${encodeURIComponent(text)}`;
   }
@@ -50,7 +48,7 @@
     });
   }
 
-  async function blobToDataUrl(blob) {
+  function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
@@ -61,7 +59,7 @@
 
   async function fetchQrDataUrl(text) {
     if (!text) return '';
-    const candidates = [buildQrImageUrl(text), buildQrFallbackImageUrl(text)];
+    const candidates = [buildQrUrlMain(text), buildQrUrlFallback(text)];
 
     for (const url of candidates) {
       try {
@@ -72,7 +70,7 @@
         const dataUrl = await blobToDataUrl(blob);
         if (dataUrl) return dataUrl;
       } catch {
-        // try next provider
+        // try next
       }
     }
     return '';
@@ -80,19 +78,18 @@
 
   async function buildPhotoThumbs(files) {
     const maxThumbs = Math.min(files.length, 24);
-    const result = [];
+    const output = [];
     for (let i = 0; i < maxThumbs; i += 1) {
       const file = files[i];
       try {
-        const url = await fileToDataUrl(file);
-        result.push({
+        output.push({
           index: i + 1,
           name: file.name,
           sizeText: formatMb(file.size),
-          url
+          url: await fileToDataUrl(file)
         });
       } catch {
-        result.push({
+        output.push({
           index: i + 1,
           name: file.name,
           sizeText: formatMb(file.size),
@@ -100,34 +97,30 @@
         });
       }
     }
-    return result;
+    return output;
   }
 
   async function buildPdfSummaryHtml(payload) {
     const form = payload?.form || {};
     const files = payload?.files || [];
-    const totalBytes = Number(payload?.totalBytes || 0);
-
     const mapLink = normalizeMapLink(form.mapsLink || '');
     const qrDataUrl = await fetchQrDataUrl(mapLink);
+    const thumbs = await buildPhotoThumbs(files);
+
+    const photoBlocks = thumbs
+      .map((item) => {
+        const media = item.url
+          ? `<img src="${item.url}" alt="Ảnh ${item.index}" />`
+          : `<div class="thumb-missing">Không đọc được ảnh</div>`;
+        return `<article class="photo-item"><div class="photo-frame">${media}</div></article>`;
+      })
+      .join('');
 
     const tableRows = files
       .map(
         (file, idx) =>
           `<tr><td>${idx + 1}</td><td>${escapeHtml(file.name)}</td><td>${formatMb(file.size)}</td></tr>`
       )
-      .join('');
-
-    const thumbs = await buildPhotoThumbs(files);
-    const photoBlocks = thumbs
-      .map((item) => {
-        const imgTag = item.url
-          ? `<img src="${item.url}" alt="Ảnh ${item.index}" />`
-          : `<div class="thumb-missing">Không đọc được ảnh</div>`;
-        return `<article class="photo-item">
-  <div class="photo-frame">${imgTag}</div>
-</article>`;
-      })
       .join('');
 
     const extraText =
@@ -145,26 +138,26 @@
     h1 { margin: 0; color: #a71d3f; font-size: 28px; }
     .sub { margin-top: 4px; color: #5f5f5f; font-size: 14px; }
     .block { margin-top: 14px; border: 1px solid #e3e3e3; border-radius: 12px; padding: 12px; }
+    .info-wrap { display: grid; grid-template-columns: 1fr 150px; gap: 12px; align-items: start; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 14px; }
     .full { grid-column: 1 / -1; }
     .label { font-weight: 700; }
+    .map-link { font-size: 12px; word-break: break-all; color: #222; }
+    .qr-side { display: grid; justify-items: center; gap: 6px; }
+    .qr-box { width: 128px; height: 128px; border: 1px solid #d8d8d8; border-radius: 10px; overflow: hidden; background: #fff; display: grid; place-items: center; }
+    .qr-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .qr-empty { color: #777; font-size: 11px; text-align: center; padding: 6px; }
+    .qr-label { font-size: 11px; color: #444; font-weight: 700; text-align: center; }
     h2 { margin: 0 0 8px; font-size: 20px; color: #173f36; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
-    th, td { border: 1px solid #d8d8d8; padding: 6px; text-align: left; vertical-align: top; }
-    th { background: #f5f3f3; }
     .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .photo-item { border: 1px solid #dddddd; border-radius: 10px; overflow: hidden; background: #fff; }
     .photo-frame { aspect-ratio: 4 / 3; background: #f4f4f4; display: grid; place-items: center; }
     .photo-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .thumb-missing { font-size: 12px; color: #666; padding: 8px; text-align: center; }
-    .photo-caption { font-size: 11px; padding: 6px 6px 0; word-break: break-word; }
-    .photo-size { font-size: 11px; color: #666; padding: 2px 6px 8px; }
     .muted { color: #666; font-size: 12px; margin-top: 6px; }
-    .map-wrap { display: grid; grid-template-columns: 130px 1fr; gap: 12px; align-items: center; }
-    .qr-box { width: 120px; height: 120px; border: 1px solid #d8d8d8; border-radius: 10px; overflow: hidden; background: #fff; display: grid; place-items: center; }
-    .qr-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
-    .qr-empty { color: #777; font-size: 11px; text-align: center; padding: 6px; }
-    .map-link { font-size: 12px; word-break: break-all; color: #222; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    th, td { border: 1px solid #d8d8d8; padding: 6px; text-align: left; vertical-align: top; }
+    th { background: #f5f3f3; }
     @media print {
       .page-break { break-before: page; }
     }
@@ -176,26 +169,25 @@
     <div class="sub">Mã hồ sơ: ${escapeHtml(form.caseCode || '')}</div>
 
     <section class="block">
-      <div class="grid">
-        <div><span class="label">Khách hàng:</span> ${escapeHtml(form.customerName || '')}</div>
-        <div><span class="label">Ngày thẩm định:</span> ${escapeHtml(toDisplayDate(form.assessmentDate) || '')}</div>
-        <div><span class="label">Địa chỉ khách hàng:</span> ${escapeHtml(form.customerAddress || '')}</div>
-        <div><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</div>
-        <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
-        <div class="full"><span class="label">Link map:</span> ${escapeHtml(mapLink || '')}</div>
-        <div class="full"><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</div>
-      </div>
-    </section>
-
-    <section class="block">
-      <h2>Mã QR tài sản</h2>
-      <div class="map-wrap">
-        <div class="qr-box">
-          ${
-            qrDataUrl
-              ? `<img src="${qrDataUrl}" alt="QR vị trí tài sản" />`
-              : `<div class="qr-empty">Chưa có link map</div>`
-          }
+      <div class="info-wrap">
+        <div class="grid">
+          <div><span class="label">Khách hàng:</span> ${escapeHtml(form.customerName || '')}</div>
+          <div><span class="label">Ngày thẩm định:</span> ${escapeHtml(toDisplayDate(form.assessmentDate) || '')}</div>
+          <div><span class="label">Địa chỉ khách hàng:</span> ${escapeHtml(form.customerAddress || '')}</div>
+          <div><span class="label">Địa chỉ tài sản:</span> ${escapeHtml(form.assetAddress || '')}</div>
+          <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
+          <div class="full"><span class="label">Link map:</span> <span class="map-link">${escapeHtml(mapLink || '')}</span></div>
+          <div class="full"><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</div>
+        </div>
+        <div class="qr-side">
+          <div class="qr-box">
+            ${
+              qrDataUrl
+                ? `<img src="${qrDataUrl}" alt="QR vị trí tài sản" />`
+                : `<div class="qr-empty">Chưa có link map</div>`
+            }
+          </div>
+          <div class="qr-label">QR vị trí</div>
         </div>
       </div>
     </section>
@@ -206,12 +198,17 @@
       ${extraText}
     </section>
 
+    <section class="block page-break">
+      <h2>Danh sách ảnh chi tiết</h2>
+      <table>
+        <thead><tr><th>#</th><th>Tên ảnh</th><th>Dung lượng</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </section>
   </div>
 </body>
 </html>`;
   }
 
-  global.PdfSummary = {
-    buildPdfSummaryHtml
-  };
+  global.PdfSummary = { buildPdfSummaryHtml };
 })(window);

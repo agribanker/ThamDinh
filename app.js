@@ -562,7 +562,6 @@ function renderParts() {
     const preview = card.querySelector('.part-preview');
     const shareBtn = card.querySelector('.share-btn');
     const copyBtn = card.querySelector('.copy-btn');
-    const downloadBtn = card.querySelector('.download-btn');
 
     title.textContent = `Phần ${part.index}/${part.totalParts}`;
     meta.textContent = `${part.files.length} ảnh • ${formatBytes(part.size)}`;
@@ -571,7 +570,6 @@ function renderParts() {
 
     shareBtn.addEventListener('click', () => sharePart(part));
     copyBtn.addEventListener('click', () => copyPartText(part));
-    downloadBtn.addEventListener('click', () => downloadPart(part));
 
     els.partsList.appendChild(card);
   });
@@ -636,41 +634,10 @@ async function copyText(text) {
 async function copyPartText(part) {
   try {
     await copyText(`${part.subject}\n\n${part.body}`);
-    setStatus(true, 'Đã copy subject + body', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
+    setStatus(true, 'Đã sao chép tiêu đề + nội dung', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
   } catch (error) {
-    setStatus(true, 'Không copy được', error.message || 'Trình duyệt không cho phép copy.');
+    setStatus(true, 'Không sao chép được', error.message || 'Trình duyệt không cho phép sao chép.');
   }
-}
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function downloadTextFile(filename, text) {
-  downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), filename);
-}
-
-function downloadPart(part) {
-  const stamp = `${part.index}-of-${part.totalParts}`;
-  const base = `${state.currentCaseCode || 'TD_PART'}_P${stamp}`;
-
-  part.files.forEach((file, idx) => {
-    const clone = new File([file], `${base}_${String(idx + 1).padStart(2, '0')}.jpg`, {
-      type: file.type,
-      lastModified: Date.now()
-    });
-    downloadBlob(clone, clone.name);
-  });
-
-  downloadTextFile(`${base}_subject_body.txt`, `${part.subject}\n\n${part.body}`);
-  setStatus(true, 'Đã tạo bộ tải dự phòng', 'Nếu chia sẻ trực tiếp lỗi, hãy gửi thủ công bằng ảnh đã tải + nội dung đã copy.');
 }
 
 async function exportSummaryPdf() {
@@ -718,7 +685,7 @@ async function exportSummaryPdf() {
 }
 
 function buildShareConfirmMessage(part) {
-  return `Bạn sắp mở mail để gửi Phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
+  return `Bạn sắp mở mail để gửi phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
 }
 
 async function sharePart(part) {
@@ -791,7 +758,7 @@ async function sharePart(part) {
       setStatus(
         true,
         'Đã mở ứng dụng chia sẻ',
-        'Thiết bị không hỗ trợ đính kèm file trực tiếp từ web. Hãy đính kèm ảnh thủ công hoặc dùng Tải dự phòng.'
+        'Thiết bị không hỗ trợ đính kèm file trực tiếp từ web. Hãy đính kèm ảnh thủ công trong ứng dụng mail.'
       );
       return;
     } catch (error) {
@@ -806,12 +773,12 @@ async function sharePart(part) {
   if (recipient) {
     const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(part.subject)}&body=${encodeURIComponent(part.body)}`;
     window.location.href = mailto;
-    setStatus(true, 'Đã mở ứng dụng mail', 'Nếu không tự đính kèm ảnh, hãy dùng Tải dự phòng rồi gửi thủ công.');
+    setStatus(true, 'Đã mở ứng dụng mail', 'Nếu không tự đính kèm ảnh, hãy thêm ảnh thủ công trong ứng dụng mail.');
     return;
   }
 
   await copyPartText(part);
-  setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã copy nội dung. Tiếp theo bấm Tải dự phòng để gửi thủ công.');
+  setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã sao chép nội dung, bạn có thể dán vào mail và đính kèm ảnh thủ công.');
 }
 
 function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 22000, maximumAge: 30000 }) {
