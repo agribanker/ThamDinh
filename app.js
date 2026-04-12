@@ -1,5 +1,5 @@
 ﻿const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
-const NEAR_LIMIT_BYTES = 15.5 * 1024 * 1024;
+const NEAR_LIMIT_BYTES = 16.5 * 1024 * 1024;
 const STABLE_MAX_FILES_PER_PART = 6;
 const STABLE_MAX_BYTES_PER_PART = 10 * 1024 * 1024;
 
@@ -47,7 +47,6 @@ const state = {
   previewUrls: [],
   addModeNextPick: false,
   compressPreset: 'balanced',
-  forceStable: false,
   autoMode: 'compact'
 };
 
@@ -340,7 +339,6 @@ function getTotalCompressedBytes() {
 }
 
 function chooseAutoMode(totalBytes) {
-  if (state.forceStable) return 'stable';
   if (totalBytes >= NEAR_LIMIT_BYTES) return 'stable';
   return 'compact';
 }
@@ -566,18 +564,11 @@ async function sharePart(part) {
     }
   }
 
-  if (state.autoMode === 'compact' && files.length > STABLE_MAX_FILES_PER_PART) {
-    state.forceStable = true;
-    rebuildPreparedParts();
-    setStatus(true, 'Đã tự tách nhỏ để gửi ổn định', 'Thiết bị chia sẻ chưa ổn khi quá nhiều ảnh mỗi lần. Vui lòng gửi lại từng phần.');
-    return;
-  }
-
   await copyPartText(part);
   setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã copy nội dung. Tiếp theo bấm Tải dự phòng để gửi thủ công.');
 }
 
-function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }) {
+function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 22000, maximumAge: 30000 }) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('no-geo'));
@@ -587,6 +578,29 @@ function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 12000
   });
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function getPositionBestEffort() {
+  const attempts = [
+    { enableHighAccuracy: false, timeout: 16000, maximumAge: 300000 },
+    { enableHighAccuracy: true, timeout: 26000, maximumAge: 60000 },
+    { enableHighAccuracy: false, timeout: 22000, maximumAge: 0 }
+  ];
+
+  let lastError;
+  for (let i = 0; i < attempts.length; i += 1) {
+    try {
+      return await getCurrentPosition(attempts[i]);
+    } catch (error) {
+      lastError = error;
+      if (i < attempts.length - 1) await wait(500);
+    }
+  }
+  throw lastError || new Error('geo-failed');
+}
+
 function buildGoogleMapsLink(lat, lng) {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
@@ -594,7 +608,7 @@ function buildGoogleMapsLink(lat, lng) {
 async function fillAssetLocation() {
   try {
     setStatus(true, 'Đang lấy vị trí tài sản...', 'Vui lòng chờ vài giây để GPS định vị.');
-    const pos = await getCurrentPosition();
+    const pos = await getPositionBestEffort();
     const lat = Number(pos.coords.latitude).toFixed(6);
     const lng = Number(pos.coords.longitude).toFixed(6);
     const url = buildGoogleMapsLink(lat, lng);
@@ -650,7 +664,6 @@ async function processSelectedFiles(fileList, append = false) {
     } else {
       state.originalFiles = incoming.slice();
       state.compressedFiles = compressed;
-      state.forceStable = false;
     }
 
     rebuildPreparedParts();
@@ -687,7 +700,6 @@ function clearImageData() {
   state.originalFiles = [];
   state.compressedFiles = [];
   state.parts = [];
-  state.forceStable = false;
   rebuildPreparedParts();
 }
 
@@ -785,6 +797,7 @@ function wireEvents() {
     input.addEventListener('input', () => {
       if (!state.compressedFiles.length) return;
       const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
+      state.autoMode = chooseAutoMode(getTotalCompressedBytes());
       state.parts = buildMailParts(splitIntoParts(payload, state.autoMode));
       updateSummary();
       renderParts();
