@@ -21,6 +21,21 @@
     return `${day}/${month}/${year}`;
   }
 
+  function normalizeMapLink(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
+    if (/^(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.com\/maps)/i.test(value)) {
+      return `https://${value}`;
+    }
+    return value;
+  }
+
+  function buildQrImageUrl(text) {
+    if (!text) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
+  }
+
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -59,6 +74,9 @@
     const form = payload?.form || {};
     const files = payload?.files || [];
     const totalBytes = Number(payload?.totalBytes || 0);
+
+    const mapLink = normalizeMapLink(form.mapsLink || '');
+    const qrImageUrl = buildQrImageUrl(mapLink);
 
     const tableRows = files
       .map(
@@ -111,6 +129,11 @@
     .photo-caption { font-size: 11px; padding: 6px 6px 0; word-break: break-word; }
     .photo-size { font-size: 11px; color: #666; padding: 2px 6px 8px; }
     .muted { color: #666; font-size: 12px; margin-top: 6px; }
+    .map-wrap { display: grid; grid-template-columns: 130px 1fr; gap: 12px; align-items: center; }
+    .qr-box { width: 120px; height: 120px; border: 1px solid #d8d8d8; border-radius: 10px; overflow: hidden; background: #fff; display: grid; place-items: center; }
+    .qr-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .qr-empty { color: #777; font-size: 11px; text-align: center; padding: 6px; }
+    .map-link { font-size: 12px; word-break: break-all; color: #222; }
     @media print {
       .page-break { break-before: page; }
     }
@@ -129,8 +152,26 @@
         <div><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</div>
         <div><span class="label">Email người nhận:</span> ${escapeHtml(form.recipientEmail || '')}</div>
         <div><span class="label">Email CBTD:</span> ${escapeHtml(form.officerEmail || '')}</div>
-        <div class="full"><span class="label">Link map:</span> ${escapeHtml(form.mapsLink || '')}</div>
+        <div class="full"><span class="label">Link map:</span> ${escapeHtml(mapLink || '')}</div>
         <div class="full"><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</div>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>QR vị trí tài sản</h2>
+      <div class="map-wrap">
+        <div class="qr-box">
+          ${
+            qrImageUrl
+              ? `<img src="${qrImageUrl}" alt="QR vị trí tài sản" />`
+              : `<div class="qr-empty">Chưa có link map</div>`
+          }
+        </div>
+        <div>
+          <div class="label">Nội dung QR</div>
+          <div class="map-link">${escapeHtml(mapLink || 'Chưa có link vị trí')}</div>
+          <p class="muted">QR lấy trực tiếp từ ô Link Google Maps, hỗ trợ cả link rút gọn từ Google Maps/Zalo.</p>
+        </div>
       </div>
     </section>
 
