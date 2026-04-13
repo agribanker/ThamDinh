@@ -112,9 +112,19 @@
     if (!text) return '';
     const candidates = [buildQrUrlMain(text), buildQrUrlFallback(text)];
 
+    async function fetchWithTimeout(url, timeoutMs = 4500) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { method: 'GET', cache: 'no-store', signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
     for (const url of candidates) {
       try {
-        const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+        const res = await fetchWithTimeout(url);
         if (!res.ok) continue;
         const blob = await res.blob();
         if (!blob || blob.size === 0) continue;
