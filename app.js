@@ -690,21 +690,44 @@ async function exportSummaryWord() {
       totalBytes: getTotalCompressedBytes()
     });
 
-    const blob = new Blob([html], {
+    const wordHtml = `\ufeff${html}`;
+    const blob = new Blob([wordHtml], {
       type: 'application/msword;charset=utf-8'
     });
     const filename = `Tom_tat_ho_so_${getDateStamp()}_${toCompactCustomerName(form.customerName || '')}.doc`;
+    const wordFile = new File([blob], filename, { type: 'application/msword' });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [wordFile] })) {
+      await navigator.share({
+        title: filename,
+        text: 'Biên bản tóm tắt thẩm định',
+        files: [wordFile]
+      });
+      setStatus(true, 'Đã mở chia sẻ file Word', 'Chọn Word/WPS/Gmail/Drive để lưu hoặc gửi file .doc.');
+      return;
+    }
+
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = filename;
+    anchor.rel = 'noopener';
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-    setStatus(true, 'Đã tải file Word', 'Mở file .doc bằng Word/WPS trên điện thoại để xem.');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent || '');
+    if (isIOS) {
+      window.open(url, '_blank', 'noopener');
+    }
+
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+    setStatus(true, 'Đã xuất file Word', 'Nếu máy không tự tải, hãy mở tab mới rồi chia sẻ/lưu vào Files hoặc Word.');
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      setStatus(true, 'Đã hủy xuất Word', 'Bạn vừa đóng bảng chia sẻ.');
+      return;
+    }
     setStatus(true, 'Xuất Word thất bại', error?.message || 'Không tạo được file Word.');
   }
 }
