@@ -676,8 +676,6 @@ async function exportSummaryWord() {
     return;
   }
 
-  setStatus(true, 'Đang chuẩn bị Word...', 'Đang dựng file .docx chuẩn.');
-
   const pendingWin = window.open('', '_blank');
   if (pendingWin) {
     pendingWin.document.open();
@@ -695,6 +693,7 @@ async function exportSummaryWord() {
   let objectUrl = '';
 
   try {
+    setStatus(true, 'Đang chuẩn bị Word...', 'Đang dựng file .docx chuẩn.');
     const docxBlob = await window.PdfSummary.buildWordSummaryDocxBlob({
       form,
       files: state.compressedFiles,
@@ -727,40 +726,9 @@ async function exportSummaryWord() {
     document.body.removeChild(anchor);
 
     if (pendingWin) {
-      const safeName = filename.replace(/"/g, '&quot;');
-      pendingWin.document.open();
-      pendingWin.document.write(`<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tải Word</title>
-    <style>
-      body { font-family: Arial, sans-serif; padding: 16px; color: #1f1f1f; }
-      .btn { display: inline-block; padding: 12px 14px; border-radius: 10px; background: #a71d3f; color: #fff; text-decoration: none; font-weight: 700; }
-      .muted { margin-top: 10px; color: #555; font-size: 14px; }
-    </style>
-  </head>
-  <body>
-    <h3>File Word đã sẵn sàng</h3>
-    <a id="downloadWordFile" class="btn" href="${objectUrl}" download="${safeName}">Tải/Mở file .docx</a>
-    <div class="muted">Nếu máy không tự tải, hãy bấm nút trên rồi chọn Word/WPS/Files.</div>
-    <script>
-      setTimeout(function () {
-        var btn = document.getElementById('downloadWordFile');
-        if (btn) btn.click();
-      }, 120);
-    </script>
-  </body>
-</html>`);
-      pendingWin.document.close();
-      try {
-        pendingWin.focus();
-      } catch {
-        // ignore
-      }
+      pendingWin.location.href = objectUrl;
     } else {
-      window.location.href = objectUrl;
+      window.open(objectUrl, '_blank', 'noopener');
     }
 
     setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
