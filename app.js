@@ -676,6 +676,8 @@ async function exportSummaryWord() {
     return;
   }
 
+  setStatus(true, 'Đang chuẩn bị Word...', 'Đang dựng file .docx chuẩn.');
+
   const pendingWin = window.open('', '_blank');
   if (pendingWin) {
     pendingWin.document.open();
@@ -693,7 +695,6 @@ async function exportSummaryWord() {
   let objectUrl = '';
 
   try {
-    setStatus(true, 'Đang chuẩn bị Word...', 'Đang dựng file .docx chuẩn.');
     const docxBlob = await window.PdfSummary.buildWordSummaryDocxBlob({
       form,
       files: state.compressedFiles,
@@ -728,7 +729,7 @@ async function exportSummaryWord() {
     if (pendingWin) {
       pendingWin.location.href = objectUrl;
     } else {
-      window.open(objectUrl, '_blank', 'noopener');
+      window.location.href = objectUrl;
     }
 
     setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
