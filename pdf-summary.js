@@ -428,47 +428,6 @@
     const form = payload?.form || {};
     const files = payload?.files || [];
     const mapLink = normalizeMapLink(form.mapsLink || '');
-    const qrDataUrl = await fetchQrDataUrl(mapLink);
-
-    const mediaEntries = [];
-    const imageRels = [];
-    const photos = files.slice(0, 24);
-    let relIndex = 1;
-    let mediaIndex = 1;
-
-    const addImage = (bytes, ext) => {
-      const rid = `rId${relIndex++}`;
-      const target = `media/image${mediaIndex++}.${ext}`;
-      mediaEntries.push({ name: `word/${target}`, bytes });
-      imageRels.push({ rid, target });
-      return { rid };
-    };
-
-    const qrParsed = dataUrlToBytes(qrDataUrl);
-    let qrImage = null;
-    if (qrParsed) {
-      const added = addImage(qrParsed.bytes, qrParsed.ext);
-      qrImage = { rid: added.rid, cx: 1400000, cy: 1400000, name: 'QR vị trí' };
-    }
-
-    const photoItems = [];
-    for (let i = 0; i < photos.length; i += 1) {
-      const file = photos[i];
-      try {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const ext = getExtFromFile(file);
-        const added = addImage(bytes, ext);
-        const size = await getImageSizeEmu(file, 2500000, 1800000);
-        photoItems.push({
-          rid: added.rid,
-          cx: size.cx,
-          cy: size.cy,
-          name: file.name || `Anh ${i + 1}`
-        });
-      } catch {
-        // Skip image if read fails.
-      }
-    }
 
     const lines = [
       ['Khách hàng', form.customerName || ''],
@@ -485,21 +444,11 @@
           `<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${xmlEscape(`${k}: `)}</w:t></w:r><w:r><w:t xml:space="preserve">${xmlEscape(v)}</w:t></w:r></w:p>`
       )
       .join('');
-    const rightCellXml = qrImage
-      ? `<w:p>${imageRunXml(qrImage.rid, qrImage.cx, qrImage.cy, 1, qrImage.name)}</w:p>`
-      : `<w:p><w:r><w:t>Chưa có link map</w:t></w:r></w:p>`;
+    const rightCellXml = `<w:p><w:r><w:t>${xmlEscape(mapLink || 'Chưa có link map')}</w:t></w:r></w:p>`;
 
-    const photoXml = photoItems
-      .map(
-        (item, idx) =>
-          `<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${xmlEscape(`Ảnh ${idx + 1}`)}</w:t></w:r></w:p><w:p>${imageRunXml(
-            item.rid,
-            item.cx,
-            item.cy,
-            idx + 10,
-            item.name
-          )}</w:p>`
-      )
+    const photoNames = files.slice(0, 24);
+    const photoXml = photoNames
+      .map((file, idx) => `<w:p><w:r><w:t>${xmlEscape(`${idx + 1}. ${file.name || `Ảnh ${idx + 1}`}`)}</w:t></w:r></w:p>`)
       .join('');
 
     const extraCount = files.length > 24 ? files.length - 24 : 0;
@@ -533,12 +482,6 @@
 
     const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  ${imageRels
-    .map(
-      (item) =>
-        `<Relationship Id="${item.rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${item.target}"/>`
-    )
-    .join('')}
 </Relationships>`;
 
     const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -576,8 +519,7 @@
       { name: 'docProps/core.xml', bytes: textToBytes(coreXml) },
       { name: 'docProps/app.xml', bytes: textToBytes(appXml) },
       { name: 'word/document.xml', bytes: textToBytes(documentXml) },
-      { name: 'word/_rels/document.xml.rels', bytes: textToBytes(docRelsXml) },
-      ...mediaEntries
+      { name: 'word/_rels/document.xml.rels', bytes: textToBytes(docRelsXml) }
     ];
 
     const zipBytes = createZip(entries);
