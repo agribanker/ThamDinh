@@ -677,25 +677,23 @@ async function exportSummaryWord() {
   }
 
   const form = collectFormData();
-  if (!window.PdfSummary?.buildWordSummaryDoc) {
+  if (!window.PdfSummary?.buildWordSummaryDocxBlob) {
     setStatus(true, 'Thiếu module Word', 'Không tìm thấy hàm xuất Word trong file pdf-summary.js.');
     return;
   }
 
   try {
-    setStatus(true, 'Đang chuẩn bị Word...', 'Đang nhúng ảnh và dựng nội dung Word.');
-    const html = await window.PdfSummary.buildWordSummaryDoc({
+    setStatus(true, 'Đang chuẩn bị Word...', 'Đang dựng file .docx chuẩn.');
+    const docxBlob = await window.PdfSummary.buildWordSummaryDocxBlob({
       form,
       files: state.compressedFiles,
       totalBytes: getTotalCompressedBytes()
     });
 
-    const wordHtml = `\ufeff${html}`;
-    const blob = new Blob([wordHtml], {
-      type: 'application/msword;charset=utf-8'
+    const filename = `Tom_tat_ho_so_${getDateStamp()}_${toCompactCustomerName(form.customerName || '')}.docx`;
+    const wordFile = new File([docxBlob], filename, {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     });
-    const filename = `Tom_tat_ho_so_${getDateStamp()}_${toCompactCustomerName(form.customerName || '')}.doc`;
-    const wordFile = new File([blob], filename, { type: 'application/msword' });
 
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [wordFile] })) {
       await navigator.share({
@@ -703,11 +701,11 @@ async function exportSummaryWord() {
         text: 'Biên bản tóm tắt thẩm định',
         files: [wordFile]
       });
-      setStatus(true, 'Đã mở chia sẻ file Word', 'Chọn Word/WPS/Gmail/Drive để lưu hoặc gửi file .doc.');
+      setStatus(true, 'Đã mở chia sẻ file Word', 'Chọn Word/WPS/Gmail/Drive để lưu hoặc gửi file .docx.');
       return;
     }
 
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(docxBlob);
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = filename;
