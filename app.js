@@ -676,11 +676,21 @@ async function exportSummaryWord() {
     return;
   }
 
+  const pendingWin = window.open('', '_blank');
+  if (pendingWin) {
+    pendingWin.document.open();
+    pendingWin.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:16px">Đang chuẩn bị file Word...</body></html>');
+    pendingWin.document.close();
+  }
+
   const form = collectFormData();
   if (!window.PdfSummary?.buildWordSummaryDocxBlob) {
+    if (pendingWin) pendingWin.close();
     setStatus(true, 'Thiếu module Word', 'Không tìm thấy hàm xuất Word trong file pdf-summary.js.');
     return;
   }
+
+  let objectUrl = '';
 
   try {
     setStatus(true, 'Đang chuẩn bị Word...', 'Đang dựng file .docx chuẩn.');
@@ -701,27 +711,31 @@ async function exportSummaryWord() {
         text: 'Biên bản tóm tắt thẩm định',
         files: [wordFile]
       });
+      if (pendingWin) pendingWin.close();
       setStatus(true, 'Đã mở chia sẻ file Word', 'Chọn Word/WPS/Gmail/Drive để lưu hoặc gửi file .docx.');
       return;
     }
 
-    const url = URL.createObjectURL(docxBlob);
+    objectUrl = URL.createObjectURL(docxBlob);
     const anchor = document.createElement('a');
-    anchor.href = url;
+    anchor.href = objectUrl;
     anchor.download = filename;
     anchor.rel = 'noopener';
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent || '');
-    if (isIOS) {
-      window.open(url, '_blank', 'noopener');
+    if (pendingWin) {
+      pendingWin.location.href = objectUrl;
+    } else {
+      window.open(objectUrl, '_blank', 'noopener');
     }
 
-    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
     setStatus(true, 'Đã xuất file Word', 'Nếu máy không tự tải, hãy mở tab mới rồi chia sẻ/lưu vào Files hoặc Word.');
   } catch (error) {
+    if (pendingWin) pendingWin.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
     if (error?.name === 'AbortError') {
       setStatus(true, 'Đã hủy xuất Word', 'Bạn vừa đóng bảng chia sẻ.');
       return;
