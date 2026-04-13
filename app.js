@@ -33,8 +33,7 @@ const els = {
   statusTitle: document.getElementById('statusTitle'),
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
-  exportPdfBtn: document.getElementById('exportPdfBtn'),
-  exportWordBtn: document.getElementById('exportWordBtn'),
+  exportPdfBtn: document.getElementById('exportPdfBtn'),
   messengerBanner: document.getElementById('messengerBanner')
 };
 
@@ -628,119 +627,80 @@ async function copyPartText(part) {
 
 async function exportSummaryPdf() {
   if (!state.compressedFiles.length) {
-    setStatus(true, 'Chưa có ảnh để xuất PDF', 'Vui lòng chọn ảnh trước khi xuất biên bản tóm tắt.');
+    setStatus(true, 'Chua co anh de xuat PDF', 'Vui long chon anh truoc khi xuat bien ban tom tat.');
     return;
   }
 
   const form = collectFormData();
   if (!window.PdfSummary?.buildPdfSummaryHtml) {
-    setStatus(true, 'Thiếu module PDF', 'Không tìm thấy file pdf-summary.js.');
+    setStatus(true, 'Thieu module PDF', 'Khong tim thay file pdf-summary.js.');
     return;
   }
 
-  setStatus(true, 'Đang chuẩn bị PDF...', 'Đang nhúng ảnh và dựng bố cục PDF.');
-  const html = await window.PdfSummary.buildPdfSummaryHtml({
-    form,
-    files: state.compressedFiles,
-    totalBytes: getTotalCompressedBytes()
-  });
   const win = window.open('', '_blank');
   if (!win) {
-    setStatus(true, 'Trình duyệt chặn popup', 'Hãy bật popup để xuất PDF.');
+    setStatus(
+      true,
+      'Trinh duyet chan popup',
+      'Hay mo bang Chrome/Safari (ngoai Zalo/Messenger) va bat cho phep popup cho trang nay roi thu lai.'
+    );
     return;
   }
 
   win.document.open();
-  win.document.write(html);
+  win.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:16px">Dang chuan bi PDF...</body></html>');
   win.document.close();
-  win.focus();
-
-  const waitForImages = async () => {
-    const started = Date.now();
-    while (Date.now() - started < 8000) {
-      const images = Array.from(win.document.images || []);
-      const pending = images.some((img) => !img.complete);
-      if (!pending) return;
-      await new Promise((resolve) => setTimeout(resolve, 120));
-    }
-  };
-
-  await waitForImages();
-  win.print();
-  setStatus(true, 'Đã mở chế độ in PDF', 'Chọn “Save as PDF” để tải biên bản.');
-}
-
-async function exportSummaryWord() {
-  if (!state.compressedFiles.length) {
-    setStatus(true, 'Chưa có ảnh để xuất Word', 'Vui lòng chọn ảnh trước khi xuất biên bản tóm tắt.');
-    return;
-  }
-
-  const pendingWin = window.open('', '_blank');
-  if (pendingWin) {
-    pendingWin.document.open();
-    pendingWin.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:16px">Đang chuẩn bị file Word...</body></html>');
-    pendingWin.document.close();
-  }
-
-  const form = collectFormData();
-  if (!window.PdfSummary?.buildWordSummaryDocxBlob) {
-    if (pendingWin) pendingWin.close();
-    setStatus(true, 'Thiếu module Word', 'Không tìm thấy hàm xuất Word trong file pdf-summary.js.');
-    return;
-  }
-
-  let objectUrl = '';
 
   try {
-    setStatus(true, 'Đang chuẩn bị Word...', 'Đang dựng file .docx chuẩn.');
-    const docxBlob = await window.PdfSummary.buildWordSummaryDocxBlob({
+    setStatus(true, 'Dang chuan bi PDF...', 'Dang nhung anh va dung bo cuc PDF.');
+    const html = await window.PdfSummary.buildPdfSummaryHtml({
       form,
       files: state.compressedFiles,
       totalBytes: getTotalCompressedBytes()
     });
 
-    const filename = `Tom_tat_ho_so_${getDateStamp()}_${toCompactCustomerName(form.customerName || '')}.docx`;
-    const wordFile = new File([docxBlob], filename, {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    });
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [wordFile] })) {
-      await navigator.share({
-        title: filename,
-        text: 'Biên bản tóm tắt thẩm định',
-        files: [wordFile]
-      });
-      if (pendingWin) pendingWin.close();
-      setStatus(true, 'Đã mở chia sẻ file Word', 'Chọn Word/WPS/Gmail/Drive để lưu hoặc gửi file .docx.');
+    const waitForImages = async (maxWaitMs = 12000) => {
+      const started = Date.now();
+      while (Date.now() - started < maxWaitMs) {
+        const images = Array.from(win.document.images || []);
+        const pending = images.filter((img) => !img.complete).length;
+        if (pending === 0) {
+          return { timedOut: false, pending: 0, total: images.length };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      const images = Array.from(win.document.images || []);
+      const pending = images.filter((img) => !img.complete).length;
+      return { timedOut: true, pending, total: images.length };
+    };
+
+    const imageState = await waitForImages();
+    win.print();
+
+    if (imageState.timedOut && imageState.pending > 0) {
+      setStatus(
+        true,
+        'Da mo che do in PDF (mot so anh tai cham)',
+        'Da cho ' + imageState.total + ' anh, con ' + imageState.pending + ' anh tai cham. Ban van co the luu PDF, hoac thu lai khi mang on dinh.'
+      );
       return;
     }
 
-    objectUrl = URL.createObjectURL(docxBlob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = filename;
-    anchor.rel = 'noopener';
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-
-    if (pendingWin) {
-      pendingWin.location.href = objectUrl;
-    } else {
-      window.open(objectUrl, '_blank', 'noopener');
-    }
-
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
-    setStatus(true, 'Đã xuất file Word', 'Nếu máy không tự tải, hãy mở tab mới rồi chia sẻ/lưu vào Files hoặc Word.');
+    setStatus(true, 'Da mo che do in PDF', 'Chon "Save as PDF" de tai bien ban.');
   } catch (error) {
-    if (pendingWin) pendingWin.close();
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    if (error?.name === 'AbortError') {
-      setStatus(true, 'Đã hủy xuất Word', 'Bạn vừa đóng bảng chia sẻ.');
-      return;
+    try {
+      win.document.open();
+      win.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:16px">Xuat PDF that bai. Vui long quay lai trang va thu lai.</body></html>');
+      win.document.close();
+    } catch {
+      // ignore window write failure
     }
-    setStatus(true, 'Xuất Word thất bại', error?.message || 'Không tạo được file Word.');
+    setStatus(true, 'Xuat PDF that bai', error?.message || 'Khong tao duoc noi dung PDF.');
   }
 }
 
@@ -1099,10 +1059,6 @@ function wireEvents() {
 
   if (els.exportPdfBtn) {
     els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
-  }
-
-  if (els.exportWordBtn) {
-    els.exportWordBtn.addEventListener('click', exportSummaryWord);
   }
 
   [
