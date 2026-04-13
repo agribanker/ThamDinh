@@ -238,6 +238,14 @@
 </html>`;
   }
 
-  global.PdfSummary = { buildPdfSummaryHtml };
+  async function buildWordSummaryDoc(payload) {
+    const html = await buildPdfSummaryHtml(payload);
+    return html.replace(
+      '<html lang="vi">',
+      '<html lang="vi" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+    );
+  }
+
+  global.PdfSummary = { buildPdfSummaryHtml, buildWordSummaryDoc };
 })(window);
 

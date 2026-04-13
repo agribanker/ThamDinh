@@ -34,6 +34,7 @@ const els = {
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
   exportPdfBtn: document.getElementById('exportPdfBtn'),
+  exportWordBtn: document.getElementById('exportWordBtn'),
   messengerBanner: document.getElementById('messengerBanner')
 };
 
@@ -669,6 +670,45 @@ async function exportSummaryPdf() {
   setStatus(true, 'Đã mở chế độ in PDF', 'Chọn “Save as PDF” để tải biên bản.');
 }
 
+async function exportSummaryWord() {
+  if (!state.compressedFiles.length) {
+    setStatus(true, 'Chưa có ảnh để xuất Word', 'Vui lòng chọn ảnh trước khi xuất biên bản tóm tắt.');
+    return;
+  }
+
+  const form = collectFormData();
+  if (!window.PdfSummary?.buildWordSummaryDoc) {
+    setStatus(true, 'Thiếu module Word', 'Không tìm thấy hàm xuất Word trong file pdf-summary.js.');
+    return;
+  }
+
+  try {
+    setStatus(true, 'Đang chuẩn bị Word...', 'Đang nhúng ảnh và dựng nội dung Word.');
+    const html = await window.PdfSummary.buildWordSummaryDoc({
+      form,
+      files: state.compressedFiles,
+      totalBytes: getTotalCompressedBytes()
+    });
+
+    const blob = new Blob([html], {
+      type: 'application/msword;charset=utf-8'
+    });
+    const filename = `Tom_tat_ho_so_${getDateStamp()}_${toCompactCustomerName(form.customerName || '')}.doc`;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    setStatus(true, 'Đã tải file Word', 'Mở file .doc bằng Word/WPS trên điện thoại để xem.');
+  } catch (error) {
+    setStatus(true, 'Xuất Word thất bại', error?.message || 'Không tạo được file Word.');
+  }
+}
+
 function buildShareConfirmMessage(part) {
   return `Bạn sắp mở mail để gửi phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
 }
@@ -1024,6 +1064,10 @@ function wireEvents() {
 
   if (els.exportPdfBtn) {
     els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
+  }
+
+  if (els.exportWordBtn) {
+    els.exportWordBtn.addEventListener('click', exportSummaryWord);
   }
 
   [
