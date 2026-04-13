@@ -46,7 +46,8 @@ const state = {
   previewUrls: [],
   addModeNextPick: false,
   autoMode: 'compact',
-  deviceShareLimited: false
+  deviceShareLimited: false,
+  isLocatingAsset: false
 };
 
 function formatDateForDisplay(dateStr) {
@@ -677,6 +678,8 @@ async function sharePart(part) {
   if (!ok) return;
 
   const files = cloneFilesForShare(part.files);
+  const qrAttachment = await createQrAttachmentIfNeeded(part);
+  if (qrAttachment) files.push(qrAttachment);
   const textOnlyData = {
     title: part.subject,
     text: `${part.subject}\n\n${part.body}`
@@ -802,8 +805,66 @@ function buildGoogleMapsLink(lat, lng) {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
+function normalizeMapLink(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  if (/^(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.com\/maps)/i.test(value)) return `https://${value}`;
+  return value;
+}
+
+function buildQrUrlMain(text) {
+  if (!text) return '';
+  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
+}
+
+function buildQrUrlFallback(text) {
+  if (!text) return '';
+  return `https://quickchart.io/qr?size=320&text=${encodeURIComponent(text)}`;
+}
+
+async function fetchQrBlobForMapLink(mapLink) {
+  const normalized = normalizeMapLink(mapLink);
+  if (!normalized) return null;
+  const candidates = [buildQrUrlMain(normalized), buildQrUrlFallback(normalized)];
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (!blob || blob.size === 0) continue;
+      return blob;
+    } catch {
+      // Try next QR provider.
+    }
+  }
+
+  return null;
+}
+
+async function createQrAttachmentIfNeeded(part) {
+  if (!part || part.index !== 1) return null;
+  const mapLink = collectFormData().mapsLink;
+  const qrBlob = await fetchQrBlobForMapLink(mapLink);
+  if (!qrBlob) return null;
+  return new File([qrBlob], 'qr_vi_tri_tai_san.png', {
+    type: 'image/png',
+    lastModified: Date.now()
+  });
+}
+
 async function fillAssetLocation() {
+  if (state.isLocatingAsset) {
+    setStatus(true, 'Đang lấy vị trí tài sản...', 'Hệ thống đang định vị, vui lòng chờ.');
+    return;
+  }
+
+  state.isLocatingAsset = true;
+  if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = true;
+
   try {
+    setMapStatus('Đang chờ cấp quyền vị trí và định vị GPS...');
     setStatus(true, 'Đang lấy vị trí tài sản...', 'Vui lòng chờ vài giây để GPS định vị.');
     const pos = await getPositionBestEffort();
     const lat = Number(pos.coords.latitude).toFixed(6);
@@ -820,10 +881,20 @@ async function fillAssetLocation() {
 
     setMapStatus(hadValue ? 'Đã cập nhật vị trí mới' : 'Đã lấy vị trí thành công', 'success');
     setStatus(true, 'Đã cập nhật link map', 'Link vị trí đã được điền vào ô Google Maps.');
-  } catch {
-    const msg = 'Không lấy được vị trí. Hãy mở bằng Chrome hoặc dán link Google Maps thủ công.';
+  } catch (error) {
+    let msg = 'Không lấy được vị trí. Hãy mở bằng Chrome hoặc dán link Google Maps thủ công.';
+    if (error?.code === 1) {
+      msg = 'Bạn vừa từ chối quyền vị trí. Hãy cho phép quyền vị trí rồi bấm lại.';
+    } else if (error?.code === 2) {
+      msg = 'Không xác định được vị trí hiện tại. Hãy kiểm tra GPS/Internet rồi thử lại.';
+    } else if (error?.code === 3) {
+      msg = 'Lấy vị trí bị quá thời gian chờ. Hãy thử lại ở nơi sóng GPS tốt hơn.';
+    }
     setMapStatus(msg, 'error');
     setStatus(true, 'Không lấy được vị trí', msg);
+  } finally {
+    state.isLocatingAsset = false;
+    if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = false;
   }
 }
 
