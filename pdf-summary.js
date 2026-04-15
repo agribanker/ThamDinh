@@ -143,18 +143,31 @@
     for (let i = 0; i < maxThumbs; i += 1) {
       const file = files[i];
       try {
+        let isPortrait = false;
+        try {
+          const image = await readFileAsImage(file);
+          const width = image.naturalWidth || image.width || 0;
+          const height = image.naturalHeight || image.height || 0;
+          isPortrait = height > width;
+          if (typeof image.close === 'function') image.close();
+        } catch {
+          isPortrait = false;
+        }
+
         output.push({
           index: i + 1,
           name: file.name,
           sizeText: formatMb(file.size),
-          url: await fileToPdfDataUrl(file)
+          url: await fileToPdfDataUrl(file),
+          isPortrait
         });
       } catch {
         output.push({
           index: i + 1,
           name: file.name,
           sizeText: formatMb(file.size),
-          url: ''
+          url: '',
+          isPortrait: false
         });
       }
     }
@@ -173,7 +186,8 @@
         const media = item.url
           ? `<img src="${item.url}" alt="Ảnh ${item.index}" />`
           : `<div class="thumb-missing">Không đọc được ảnh</div>`;
-        return `<article class="photo-item"><div class="photo-frame">${media}</div></article>`;
+        const frameClass = item.isPortrait ? 'portrait' : 'landscape';
+        return `<article class="photo-item ${frameClass}"><div class="photo-frame">${media}</div></article>`;
       })
       .join('');
 
@@ -203,7 +217,9 @@
     h2 { margin: 0 0 8px; font-size: 20px; color: #173f36; }
     .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .photo-item { border: 1px solid #dddddd; border-radius: 10px; overflow: hidden; background: #fff; }
-    .photo-frame { height: 220px; background: #f4f4f4; display: grid; place-items: center; }
+    .photo-item.landscape .photo-frame { height: 200px; }
+    .photo-item.portrait .photo-frame { height: 280px; }
+    .photo-frame { background: #f4f4f4; display: grid; place-items: center; }
     .photo-frame img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
     .thumb-missing { font-size: 12px; color: #666; padding: 8px; text-align: center; }
     .muted { color: #666; font-size: 12px; margin-top: 6px; }
