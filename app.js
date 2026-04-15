@@ -33,7 +33,8 @@ const els = {
   statusTitle: document.getElementById('statusTitle'),
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
-  exportPdfBtn: document.getElementById('exportPdfBtn'),
+  exportPdfBtn: document.getElementById('exportPdfBtn'),
+
   messengerBanner: document.getElementById('messengerBanner')
 };
 
@@ -998,7 +999,7 @@ async function processSelectedFiles(fileList, append = false) {
 function resetFormDefaults() {
   const now = new Date();
   els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  els.notes.value = 'Hình ảnh hiện trạng tài sản bảo đảm';
+  els.notes.value = '';
   setMapStatus('');
 }
 
