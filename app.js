@@ -418,7 +418,7 @@ function buildMailParts(parts) {
       `Phần: ${indexLabel}`,
       `Số ảnh: ${part.items.length}`,
       '',
-      `Ghi chú: ${form.notes || 'Hình ảnh hiện trạng tài sản bảo đảm'}`
+      `Ghi chú: ${form.notes || ''}`
     ].join('\n');
 
     return {
