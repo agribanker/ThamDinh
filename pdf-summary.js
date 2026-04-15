@@ -203,8 +203,8 @@
     h2 { margin: 0 0 8px; font-size: 20px; color: #173f36; }
     .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .photo-item { border: 1px solid #dddddd; border-radius: 10px; overflow: hidden; background: #fff; }
-    .photo-frame { aspect-ratio: 4 / 3; background: #f4f4f4; display: grid; place-items: center; }
-    .photo-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-frame { height: 220px; background: #f4f4f4; display: grid; place-items: center; }
+    .photo-frame img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
     .thumb-missing { font-size: 12px; color: #666; padding: 8px; text-align: center; }
     .muted { color: #666; font-size: 12px; margin-top: 6px; }
   </style>
