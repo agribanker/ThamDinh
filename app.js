@@ -50,7 +50,9 @@ const state = {
   addModeNextPick: false,
   autoMode: 'compact',
   deviceShareLimited: false,
-  isLocatingAsset: false
+  isLocatingAsset: false,
+  preparedPdfFileForShare: null,
+  isPreparingPdfForShare: false
 };
 
 function formatDateForDisplay(dateStr) {
@@ -243,6 +245,10 @@ function setMapStatus(message, type = 'success') {
   }
   els.mapStatus.textContent = message;
   els.mapStatus.className = `map-status ${type}`;
+}
+
+function invalidatePreparedPdfShare() {
+  state.preparedPdfFileForShare = null;
 }
 
 function collectFormData() {
@@ -569,6 +575,7 @@ function removeImageAt(index) {
   if (index < 0 || index >= state.compressedFiles.length) return;
   state.compressedFiles.splice(index, 1);
   if (index < state.originalFiles.length) state.originalFiles.splice(index, 1);
+  invalidatePreparedPdfShare();
   rebuildPreparedParts();
   refreshImageHints();
   setStatus(true, 'Đã xóa 1 ảnh', 'Đã cập nhật lại dung lượng và phần gửi.');
@@ -768,11 +775,8 @@ async function shareSummaryPdf() {
     return;
   }
 
-  setStatus(true, 'Dang tao file PDF...', 'He thong dang dong goi anh vao file PDF.');
-
-  try {
-    const pdfFile = await createSummaryPdfFile();
-
+  if (state.preparedPdfFileForShare) {
+    const pdfFile = state.preparedPdfFileForShare;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -820,12 +824,25 @@ async function shareSummaryPdf() {
       'Thiet bi khong ho tro gui file PDF truc tiep',
       'Da tai file PDF ve may. Ban mo Mail de dinh kem file vua tai.'
     );
+    return;
+  }
+
+  if (state.isPreparingPdfForShare) {
+    setStatus(true, 'Dang tao file PDF...', 'Vui long cho hoan tat roi bam Gui PDF lan nua.');
+    return;
+  }
+
+  state.isPreparingPdfForShare = true;
+  setStatus(true, 'Dang tao file PDF...', 'He thong dang dong goi anh vao file PDF.');
+
+  try {
+    const pdfFile = await createSummaryPdfFile();
+    state.preparedPdfFileForShare = pdfFile;
+    setStatus(true, 'Da tao xong file PDF', 'Bam lai nut Gui PDF de mo man hinh chon Mail/Gmail va gui file.');
   } catch (error) {
-    if (error?.name === 'AbortError') {
-      setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
-      return;
-    }
     setStatus(true, 'Gui PDF that bai', error?.message || 'Khong tao duoc file PDF.');
+  } finally {
+    state.isPreparingPdfForShare = false;
   }
 }
 
@@ -1033,6 +1050,7 @@ async function fillAssetLocation() {
     const hadValue = Boolean(els.mapsLink.value.trim());
 
     els.mapsLink.value = url;
+    invalidatePreparedPdfShare();
     try {
       await copyText(url);
     } catch {
@@ -1065,6 +1083,7 @@ function isMessengerInAppBrowser() {
 
 async function processSelectedFiles(fileList, append = false) {
   if (!fileList.length) return;
+  invalidatePreparedPdfShare();
 
   setStatus(true, 'Đang xử lý ảnh...', 'Đang nén ảnh và chuẩn bị phần gửi.');
   els.photoInput.disabled = true;
@@ -1133,6 +1152,7 @@ function clearImageData() {
   state.compressedFiles = [];
   state.parts = [];
   state.deviceShareLimited = false;
+  invalidatePreparedPdfShare();
   rebuildPreparedParts();
   setImageHints([]);
 }
@@ -1204,6 +1224,7 @@ function wireEvents() {
     .filter(Boolean)
     .forEach((input) => {
     input.addEventListener('input', () => {
+      invalidatePreparedPdfShare();
       if (!state.compressedFiles.length) return;
       const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
       state.autoMode = chooseAutoMode(getTotalCompressedBytes());
