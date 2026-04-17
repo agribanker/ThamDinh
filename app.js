@@ -1,4 +1,4 @@
-const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
+﻿const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
 const NEAR_LIMIT_BYTES = 16.5 * 1024 * 1024;
 const STABLE_MAX_FILES_PER_PART = 6;
 const STABLE_MAX_BYTES_PER_PART = 10 * 1024 * 1024;
@@ -34,7 +34,6 @@ const els = {
   statusTitle: document.getElementById('statusTitle'),
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
-  sharePdfBtn: document.getElementById('sharePdfBtn'),
   exportPdfBtn: document.getElementById('exportPdfBtn'),
 
   messengerBanner: document.getElementById('messengerBanner')
@@ -50,9 +49,7 @@ const state = {
   addModeNextPick: false,
   autoMode: 'compact',
   deviceShareLimited: false,
-  isLocatingAsset: false,
-  preparedPdfFileForShare: null,
-  isPreparingPdfForShare: false
+  isLocatingAsset: false
 };
 
 function formatDateForDisplay(dateStr) {
@@ -69,8 +66,8 @@ function toAsciiNoMark(text) {
   return String(text || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D');
+    .replace(/Ä‘/g, 'd')
+    .replace(/Ä/g, 'D');
 }
 
 function toCompactCustomerName(text) {
@@ -132,7 +129,7 @@ function setImageHints(messages = []) {
     return;
   }
 
-  els.imageHints.innerHTML = messages.map((msg) => `• ${escapeHtml(msg)}`).join('<br>');
+  els.imageHints.innerHTML = messages.map((msg) => `â€¢ ${escapeHtml(msg)}`).join('<br>');
   els.imageHints.classList.remove('hidden');
 }
 
@@ -201,7 +198,7 @@ async function analyzeImageHints(files) {
     if (count > 1) duplicatedByNameSize += count - 1;
   });
   if (duplicatedByNameSize > 0) {
-    hints.push(`Có ${duplicatedByNameSize} ảnh trùng tên + dung lượng, nên kiểm tra và xóa bớt.`);
+    hints.push(`CÃ³ ${duplicatedByNameSize} áº£nh trÃ¹ng tÃªn + dung lÆ°á»£ng, nÃªn kiá»ƒm tra vÃ  xÃ³a bá»›t.`);
   }
 
   let duplicatedBySignature = 0;
@@ -209,15 +206,15 @@ async function analyzeImageHints(files) {
     if (arr.length > 1) duplicatedBySignature += arr.length - 1;
   });
   if (duplicatedBySignature > 0) {
-    hints.push(`Có ${duplicatedBySignature} ảnh có nội dung rất giống nhau (hash gần trùng).`);
+    hints.push(`CÃ³ ${duplicatedBySignature} áº£nh cÃ³ ná»™i dung ráº¥t giá»‘ng nhau (hash gáº§n trÃ¹ng).`);
   }
 
   if (tinyFiles.length > 0) {
-    hints.push(`Có ${tinyFiles.length} ảnh dung lượng rất nhỏ (<100KB), nên kiểm tra ảnh mờ/thiếu chi tiết.`);
+    hints.push(`CÃ³ ${tinyFiles.length} áº£nh dung lÆ°á»£ng ráº¥t nhá» (<100KB), nÃªn kiá»ƒm tra áº£nh má»/thiáº¿u chi tiáº¿t.`);
   }
 
   if (suspiciousSmallLargeDims.length > 0) {
-    hints.push(`Có ${suspiciousSmallLargeDims.length} ảnh độ phân giải lớn nhưng dung lượng quá thấp, nên xem lại chất lượng.`);
+    hints.push(`CÃ³ ${suspiciousSmallLargeDims.length} áº£nh Ä‘á»™ phÃ¢n giáº£i lá»›n nhÆ°ng dung lÆ°á»£ng quÃ¡ tháº¥p, nÃªn xem láº¡i cháº¥t lÆ°á»£ng.`);
   }
 
   return hints;
@@ -245,10 +242,6 @@ function setMapStatus(message, type = 'success') {
   }
   els.mapStatus.textContent = message;
   els.mapStatus.className = `map-status ${type}`;
-}
-
-function invalidatePreparedPdfShare() {
-  state.preparedPdfFileForShare = null;
 }
 
 function collectFormData() {
@@ -284,7 +277,7 @@ function fallbackReadFileAsImage(file) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error(`Không đọc được ảnh: ${file.name}`));
+      reject(new Error(`KhÃ´ng Ä‘á»c Ä‘Æ°á»£c áº£nh: ${file.name}`));
     };
     img.src = objectUrl;
   });
@@ -303,7 +296,7 @@ function renderCompressedBlob(image, maxEdge, quality) {
 
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) {
-    throw new Error('Trình duyệt không hỗ trợ canvas.');
+    throw new Error('TrÃ¬nh duyá»‡t khÃ´ng há»— trá»£ canvas.');
   }
 
   ctx.imageSmoothingEnabled = true;
@@ -316,7 +309,7 @@ function renderCompressedBlob(image, maxEdge, quality) {
     canvas.toBlob(
       (blob) => {
         if (!blob) {
-          reject(new Error('Nén ảnh thất bại.'));
+          reject(new Error('NÃ©n áº£nh tháº¥t báº¡i.'));
           return;
         }
         resolve(blob);
@@ -409,26 +402,26 @@ function buildMailParts(parts) {
 
   return parts.map((part, partIndex) => {
     const indexLabel = `${partIndex + 1}/${totalParts}`;
-    const subject = `[Thẩm định] ${form.caseCode} - ${form.customerName || 'Khach hang'} - P${indexLabel} - CBTD: ${
+    const subject = `[Tháº©m Ä‘á»‹nh] ${form.caseCode} - ${form.customerName || 'Khach hang'} - P${indexLabel} - CBTD: ${
       form.officerName || 'CBTD'
     }`;
 
     const body = [
-      `Mã khách hàng: ${form.caseCode}`,
+      `MÃ£ khÃ¡ch hÃ ng: ${form.caseCode}`,
       '',
-      `Khách hàng: ${form.customerName || ''}`,
-      `Địa chỉ khách hàng: ${form.customerAddress || ''}`,
-      `Địa chỉ TSĐB: ${form.assetAddress || ''}`,
+      `KhÃ¡ch hÃ ng: ${form.customerName || ''}`,
+      `Äá»‹a chá»‰ khÃ¡ch hÃ ng: ${form.customerAddress || ''}`,
+      `Äá»‹a chá»‰ TSÄB: ${form.assetAddress || ''}`,
       `Link map: ${form.mapsLink || ''}`,
-      `Ngày thẩm định: ${formatDateForDisplay(form.assessmentDate) || ''}`,
+      `NgÃ y tháº©m Ä‘á»‹nh: ${formatDateForDisplay(form.assessmentDate) || ''}`,
       '',
       `CBTD: ${form.officerName || ''}`,
       '',
-      `Phần: ${indexLabel}`,
-      `Số ảnh: ${part.items.length}`,
+      `Pháº§n: ${indexLabel}`,
+      `Sá»‘ áº£nh: ${part.items.length}`,
       '',
-      `Thông tin GCN QSDĐ: ${form.notes || ''}`,
-      `Ghi chú: ${form.landNotes || ''}`
+      `ThÃ´ng tin GCN QSDÄ: ${form.notes || ''}`,
+      `Ghi chÃº: ${form.landNotes || ''}`
     ].join('\n');
 
     return {
@@ -473,28 +466,28 @@ function updateSummary() {
   els.partCount.textContent = String(state.parts.length);
 
   if (!state.compressedFiles.length) {
-    els.limitStatus.textContent = 'Chưa có ảnh';
+    els.limitStatus.textContent = 'ChÆ°a cÃ³ áº£nh';
     setWarning('');
     return;
   }
 
   if (compressedBytes > SAFE_LIMIT_BYTES) {
-    els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
-    setWarning('Dung lượng vượt ngưỡng gửi an toàn. Hãy xóa bớt ảnh rồi thử lại.');
+    els.limitStatus.textContent = `VÆ°á»£t ngÆ°á»¡ng, Ä‘Ã£ chia ${state.parts.length} pháº§n`;
+    setWarning('Dung lÆ°á»£ng vÆ°á»£t ngÆ°á»¡ng gá»­i an toÃ n. HÃ£y xÃ³a bá»›t áº£nh rá»“i thá»­ láº¡i.');
     return;
   }
 
   if (state.autoMode === 'stable' && state.parts.length > 1) {
-    els.limitStatus.textContent = `Đã chia ${state.parts.length} phần (ổn định)`;
+    els.limitStatus.textContent = `ÄÃ£ chia ${state.parts.length} pháº§n (á»•n Ä‘á»‹nh)`;
     if (compressedBytes >= NEAR_LIMIT_BYTES) {
-      setWarning('Gần ngưỡng gửi an toàn, hệ thống tự tách nhỏ để gửi dễ hơn.');
+      setWarning('Gáº§n ngÆ°á»¡ng gá»­i an toÃ n, há»‡ thá»‘ng tá»± tÃ¡ch nhá» Ä‘á»ƒ gá»­i dá»… hÆ¡n.');
     } else {
-      setWarning('Thiết bị giới hạn chia sẻ nhiều ảnh một lần, hệ thống đã tách nhỏ để mở mail ổn định hơn.');
+      setWarning('Thiáº¿t bá»‹ giá»›i háº¡n chia sáº» nhiá»u áº£nh má»™t láº§n, há»‡ thá»‘ng Ä‘Ã£ tÃ¡ch nhá» Ä‘á»ƒ má»Ÿ mail á»•n Ä‘á»‹nh hÆ¡n.');
     }
     return;
   }
 
-  els.limitStatus.textContent = state.parts.length > 1 ? `Đã chia ${state.parts.length} phần` : 'Đã sẵn sàng gửi 1 phần';
+  els.limitStatus.textContent = state.parts.length > 1 ? `ÄÃ£ chia ${state.parts.length} pháº§n` : 'ÄÃ£ sáºµn sÃ ng gá»­i 1 pháº§n';
   setWarning('');
 }
 
@@ -515,7 +508,7 @@ function makePreviewItem(file, index) {
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
   deleteBtn.className = 'preview-delete';
-  deleteBtn.textContent = 'Xóa';
+  deleteBtn.textContent = 'XÃ³a';
   deleteBtn.addEventListener('click', () => removeImageAt(index));
 
   media.appendChild(img);
@@ -545,7 +538,7 @@ function renderParts() {
   if (!state.parts.length) {
     const empty = document.createElement('div');
     empty.className = 'warning';
-    empty.textContent = 'Chưa có ảnh để chuẩn bị phần gửi.';
+    empty.textContent = 'ChÆ°a cÃ³ áº£nh Ä‘á»ƒ chuáº©n bá»‹ pháº§n gá»­i.';
     els.partsList.appendChild(empty);
     return;
   }
@@ -559,9 +552,9 @@ function renderParts() {
     const shareBtn = card.querySelector('.share-btn');
     const copyBtn = card.querySelector('.copy-btn');
 
-    title.textContent = `Phần ${part.index}/${part.totalParts}`;
-    meta.textContent = `${part.files.length} ảnh • ${formatBytes(part.size)}`;
-    badge.textContent = part.oversize ? 'Cần kiểm tra' : 'Sẵn sàng';
+    title.textContent = `Pháº§n ${part.index}/${part.totalParts}`;
+    meta.textContent = `${part.files.length} áº£nh â€¢ ${formatBytes(part.size)}`;
+    badge.textContent = part.oversize ? 'Cáº§n kiá»ƒm tra' : 'Sáºµn sÃ ng';
     preview.textContent = `${part.subject}\n\n${part.body}`;
 
     shareBtn.addEventListener('click', () => sharePart(part));
@@ -575,10 +568,9 @@ function removeImageAt(index) {
   if (index < 0 || index >= state.compressedFiles.length) return;
   state.compressedFiles.splice(index, 1);
   if (index < state.originalFiles.length) state.originalFiles.splice(index, 1);
-  invalidatePreparedPdfShare();
   rebuildPreparedParts();
   refreshImageHints();
-  setStatus(true, 'Đã xóa 1 ảnh', 'Đã cập nhật lại dung lượng và phần gửi.');
+  setStatus(true, 'ÄÃ£ xÃ³a 1 áº£nh', 'ÄÃ£ cáº­p nháº­t láº¡i dung lÆ°á»£ng vÃ  pháº§n gá»­i.');
 }
 
 function canShareFiles(files) {
@@ -606,7 +598,7 @@ function forceSplitForDeviceShare() {
   state.parts = forcedParts;
   updateSummary();
   renderParts();
-  setWarning('Thiết bị giới hạn số ảnh/lần chia sẻ. Hệ thống đã tự chia nhỏ để mở mail ổn định hơn.');
+  setWarning('Thiáº¿t bá»‹ giá»›i háº¡n sá»‘ áº£nh/láº§n chia sáº». Há»‡ thá»‘ng Ä‘Ã£ tá»± chia nhá» Ä‘á»ƒ má»Ÿ mail á»•n Ä‘á»‹nh hÆ¡n.');
   return true;
 }
 
@@ -631,21 +623,21 @@ async function copyText(text) {
 async function copyPartText(part) {
   try {
     await copyText(`${part.subject}\n\n${part.body}`);
-    setStatus(true, 'Đã sao chép nội dung mail', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
+    setStatus(true, 'ÄÃ£ sao chÃ©p ná»™i dung mail', 'Báº¡n cÃ³ thá»ƒ dÃ¡n vÃ o á»©ng dá»¥ng mail náº¿u khÃ´ng chia sáº» file trá»±c tiáº¿p Ä‘Æ°á»£c.');
   } catch (error) {
-    setStatus(true, 'Không sao chép được', error.message || 'Trình duyệt không cho phép sao chép.');
+    setStatus(true, 'KhÃ´ng sao chÃ©p Ä‘Æ°á»£c', error.message || 'TrÃ¬nh duyá»‡t khÃ´ng cho phÃ©p sao chÃ©p.');
   }
 }
 
 async function exportSummaryPdf() {
   if (!state.compressedFiles.length) {
-    setStatus(true, 'Chưa có ảnh để xuất PDF', 'Vui lòng chọn ảnh trước khi xuất file PDF.');
+    setStatus(true, 'ChÆ°a cÃ³ áº£nh Ä‘á»ƒ xuáº¥t PDF', 'Vui lÃ²ng chá»n áº£nh trÆ°á»›c khi xuáº¥t file PDF.');
     return;
   }
 
   const form = collectFormData();
   if (!window.PdfSummary?.buildPdfSummaryHtml) {
-    setStatus(true, 'Thiếu module PDF', 'Không tìm thấy file pdf-summary.js.');
+    setStatus(true, 'Thiáº¿u module PDF', 'KhÃ´ng tÃ¬m tháº¥y file pdf-summary.js.');
     return;
   }
 
@@ -664,7 +656,7 @@ async function exportSummaryPdf() {
   win.document.close();
 
   try {
-    setStatus(true, 'Đang chuẩn bị file PDF ...', 'Dang nhung anh va dung bo cuc PDF.');
+    setStatus(true, 'Äang chuáº©n bá»‹ file PDF ...', 'Dang nhung anh va dung bo cuc PDF.');
     const html = await window.PdfSummary.buildPdfSummaryHtml({
       form,
       files: state.compressedFiles,
@@ -703,7 +695,7 @@ async function exportSummaryPdf() {
       return;
     }
 
-    setStatus(true, 'Đã xuất PDF', 'Chọn "Save as PDF" để lưu file.');
+    setStatus(true, 'ÄÃ£ xuáº¥t PDF', 'Chá»n "Save as PDF" Ä‘á»ƒ lÆ°u file.');
   } catch (error) {
     try {
       win.document.open();
@@ -716,138 +708,9 @@ async function exportSummaryPdf() {
   }
 }
 
-async function createSummaryPdfFile() {
-  if (!window.html2pdf) {
-    throw new Error('Khong tai duoc thu vien tao PDF.');
-  }
-  if (!window.PdfSummary?.buildPdfSummaryHtml) {
-    throw new Error('Khong tim thay module PDF.');
-  }
-  if (!state.compressedFiles.length) {
-    throw new Error('Chua co anh de tao PDF.');
-  }
-
-  const form = collectFormData();
-  const html = await window.PdfSummary.buildPdfSummaryHtml({
-    form,
-    files: state.compressedFiles,
-    totalBytes: getTotalCompressedBytes()
-  });
-  const fileName = `${getDateStamp()}_${toCompactCustomerName(els.customerName?.value || '')}_HinhAnh.pdf`;
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-100000px';
-  container.style.top = '0';
-  container.style.width = '794px';
-  container.style.background = '#ffffff';
-  const styleHtml = Array.from(doc.head.querySelectorAll('style'))
-    .map((node) => node.outerHTML)
-    .join('');
-  container.innerHTML = `${styleHtml}${doc.body.innerHTML}`;
-  document.body.appendChild(container);
-
-  try {
-    const blob = await window
-      .html2pdf()
-      .set({
-        filename: fileName,
-        margin: 0,
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] }
-      })
-      .from(container)
-      .toPdf()
-      .outputPdf('blob');
-
-    return new File([blob], fileName, { type: 'application/pdf', lastModified: Date.now() });
-  } finally {
-    container.remove();
-  }
-}
-
-async function shareSummaryPdf() {
-  if (!state.compressedFiles.length) {
-    setStatus(true, 'Chua co anh de gui PDF', 'Vui long chon anh truoc khi gui PDF.');
-    return;
-  }
-
-  if (state.preparedPdfFileForShare) {
-    const pdfFile = state.preparedPdfFileForShare;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Ho so tham dinh',
-          files: [pdfFile]
-        });
-        setStatus(true, 'Da mo chia se file PDF', 'Hay chon ung dung Mail/Gmail/Outlook de gui PDF.');
-        return;
-      } catch (shareError) {
-        if (shareError?.name === 'AbortError') {
-          setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
-          return;
-        }
-
-        try {
-          await navigator.share({
-            title: 'Ho so tham dinh',
-            text: 'File PDF da duoc tao. Ban chon Mail/Gmail de gui.'
-          });
-          setStatus(
-            true,
-            'Da mo man hinh chia se',
-            'Thiet bi khong ho tro gui kem PDF truc tiep tu web. Ban gui mail va dinh kem PDF thu cong.'
-          );
-          return;
-        } catch (textShareError) {
-          if (textShareError?.name === 'AbortError') {
-            setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
-            return;
-          }
-        }
-      }
-    }
-
-    const downloadUrl = URL.createObjectURL(pdfFile);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = pdfFile.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(downloadUrl);
-    setStatus(
-      true,
-      'Thiet bi khong ho tro gui file PDF truc tiep',
-      'Da tai file PDF ve may. Ban mo Mail de dinh kem file vua tai.'
-    );
-    return;
-  }
-
-  if (state.isPreparingPdfForShare) {
-    setStatus(true, 'Dang tao file PDF...', 'Vui long cho hoan tat roi bam Gui PDF lan nua.');
-    return;
-  }
-
-  state.isPreparingPdfForShare = true;
-  setStatus(true, 'Dang tao file PDF...', 'He thong dang dong goi anh vao file PDF.');
-
-  try {
-    const pdfFile = await createSummaryPdfFile();
-    state.preparedPdfFileForShare = pdfFile;
-    setStatus(true, 'Da tao xong file PDF', 'Bam lai nut Gui PDF de mo man hinh chon Mail/Gmail va gui file.');
-  } catch (error) {
-    setStatus(true, 'Gui PDF that bai', error?.message || 'Khong tao duoc file PDF.');
-  } finally {
-    state.isPreparingPdfForShare = false;
-  }
-}
 
 function buildShareConfirmMessage(part) {
-  return `Bạn sắp mở mail để gửi phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
+  return `Báº¡n sáº¯p má»Ÿ mail Ä‘á»ƒ gá»­i pháº§n ${part.index}/${part.totalParts}\n${part.files.length} áº£nh - ${formatBytes(part.size)}\n\nTiáº¿p tá»¥c / Há»§y`;
 }
 
 async function sharePart(part) {
@@ -873,8 +736,8 @@ async function sharePart(part) {
     if (wasSplit) {
       setStatus(
         true,
-        'Thiết bị không mở mail với nhiều ảnh cùng lúc',
-        'Đã tự chia nhỏ phần gửi theo chế độ ổn định. Bạn bấm gửi lại từng phần.'
+        'Thiáº¿t bá»‹ khÃ´ng má»Ÿ mail vá»›i nhiá»u áº£nh cÃ¹ng lÃºc',
+        'ÄÃ£ tá»± chia nhá» pháº§n gá»­i theo cháº¿ Ä‘á»™ á»•n Ä‘á»‹nh. Báº¡n báº¥m gá»­i láº¡i tá»«ng pháº§n.'
       );
       return;
     }
@@ -883,11 +746,11 @@ async function sharePart(part) {
   if (canShareFiles(files)) {
     try {
       await navigator.share(shareData);
-      setStatus(true, `Đã mở chia sẻ phần ${part.index}/${part.totalParts}`, 'Chọn Gmail/Outlook/Mail rồi bấm gửi trong ứng dụng mail.');
+      setStatus(true, `ÄÃ£ má»Ÿ chia sáº» pháº§n ${part.index}/${part.totalParts}`, 'Chá»n Gmail/Outlook/Mail rá»“i báº¥m gá»­i trong á»©ng dá»¥ng mail.');
       return;
     } catch (error) {
       if (error?.name === 'AbortError') {
-        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
+        setStatus(true, 'ÄÃ£ há»§y chia sáº»', 'Báº¡n vá»«a Ä‘Ã³ng báº£ng chia sáº».');
         return;
       }
       if (files.length > 1) {
@@ -895,8 +758,8 @@ async function sharePart(part) {
         if (wasSplit) {
           setStatus(
             true,
-            'Thiết bị từ chối chia sẻ nhiều ảnh cùng lúc',
-            'Đã tự chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
+            'Thiáº¿t bá»‹ tá»« chá»‘i chia sáº» nhiá»u áº£nh cÃ¹ng lÃºc',
+            'ÄÃ£ tá»± chia nhá» áº£nh Ä‘á»ƒ gá»­i á»•n Ä‘á»‹nh hÆ¡n. Báº¡n báº¥m gá»­i láº¡i tá»«ng pháº§n.'
           );
           return;
         }
@@ -909,8 +772,8 @@ async function sharePart(part) {
     if (wasSplit) {
       setStatus(
         true,
-        'Thiết bị giới hạn số file đính kèm',
-        'Đã chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
+        'Thiáº¿t bá»‹ giá»›i háº¡n sá»‘ file Ä‘Ã­nh kÃ¨m',
+        'ÄÃ£ chia nhá» áº£nh Ä‘á»ƒ gá»­i á»•n Ä‘á»‹nh hÆ¡n. Báº¡n báº¥m gá»­i láº¡i tá»«ng pháº§n.'
       );
       return;
     }
@@ -921,13 +784,13 @@ async function sharePart(part) {
       await navigator.share(textOnlyData);
       setStatus(
         true,
-        'Đã mở ứng dụng chia sẻ',
-        'Thiết bị không hỗ trợ đính kèm file trực tiếp từ web. Hãy đính kèm ảnh thủ công trong ứng dụng mail.'
+        'ÄÃ£ má»Ÿ á»©ng dá»¥ng chia sáº»',
+        'Thiáº¿t bá»‹ khÃ´ng há»— trá»£ Ä‘Ã­nh kÃ¨m file trá»±c tiáº¿p tá»« web. HÃ£y Ä‘Ã­nh kÃ¨m áº£nh thá»§ cÃ´ng trong á»©ng dá»¥ng mail.'
       );
       return;
     } catch (error) {
       if (error?.name === 'AbortError') {
-        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
+        setStatus(true, 'ÄÃ£ há»§y chia sáº»', 'Báº¡n vá»«a Ä‘Ã³ng báº£ng chia sáº».');
         return;
       }
     }
@@ -937,12 +800,12 @@ async function sharePart(part) {
   if (recipient) {
     const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(part.subject)}&body=${encodeURIComponent(part.body)}`;
     window.location.href = mailto;
-    setStatus(true, 'Đã mở ứng dụng mail', 'Nếu không tự đính kèm ảnh, hãy thêm ảnh thủ công trong ứng dụng mail.');
+    setStatus(true, 'ÄÃ£ má»Ÿ á»©ng dá»¥ng mail', 'Náº¿u khÃ´ng tá»± Ä‘Ã­nh kÃ¨m áº£nh, hÃ£y thÃªm áº£nh thá»§ cÃ´ng trong á»©ng dá»¥ng mail.');
     return;
   }
 
   await copyPartText(part);
-  setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã sao chép nội dung, bạn có thể dán vào mail và đính kèm ảnh thủ công.');
+  setStatus(true, 'Thiáº¿t bá»‹ khÃ´ng chia sáº» file trá»±c tiáº¿p Ä‘Æ°á»£c', 'ÄÃ£ sao chÃ©p ná»™i dung, báº¡n cÃ³ thá»ƒ dÃ¡n vÃ o mail vÃ  Ä‘Ã­nh kÃ¨m áº£nh thá»§ cÃ´ng.');
 }
 
 function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 22000, maximumAge: 30000 }) {
@@ -1033,7 +896,7 @@ async function createQrAttachmentIfNeeded(part) {
 
 async function fillAssetLocation() {
   if (state.isLocatingAsset) {
-    setStatus(true, 'Đang lấy vị trí tài sản...', 'Hệ thống đang định vị, vui lòng chờ.');
+    setStatus(true, 'Äang láº¥y vá»‹ trÃ­ tÃ i sáº£n...', 'Há»‡ thá»‘ng Ä‘ang Ä‘á»‹nh vá»‹, vui lÃ²ng chá».');
     return;
   }
 
@@ -1041,8 +904,8 @@ async function fillAssetLocation() {
   if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = true;
 
   try {
-    setMapStatus('Đang chờ cấp quyền vị trí và định vị GPS...');
-    setStatus(true, 'Đang lấy vị trí tài sản...', 'Vui lòng chờ vài giây để GPS định vị.');
+    setMapStatus('Äang chá» cáº¥p quyá»n vá»‹ trÃ­ vÃ  Ä‘á»‹nh vá»‹ GPS...');
+    setStatus(true, 'Äang láº¥y vá»‹ trÃ­ tÃ i sáº£n...', 'Vui lÃ²ng chá» vÃ i giÃ¢y Ä‘á»ƒ GPS Ä‘á»‹nh vá»‹.');
     const pos = await getPositionBestEffort();
     const lat = Number(pos.coords.latitude).toFixed(6);
     const lng = Number(pos.coords.longitude).toFixed(6);
@@ -1050,26 +913,25 @@ async function fillAssetLocation() {
     const hadValue = Boolean(els.mapsLink.value.trim());
 
     els.mapsLink.value = url;
-    invalidatePreparedPdfShare();
     try {
       await copyText(url);
     } catch {
       // copy may fail in some in-app browsers
     }
 
-    setMapStatus(hadValue ? 'Đã cập nhật vị trí mới' : 'Đã lấy vị trí thành công', 'success');
-    setStatus(true, 'Đã cập nhật link map', 'Link vị trí đã được điền vào ô Google Maps.');
+    setMapStatus(hadValue ? 'ÄÃ£ cáº­p nháº­t vá»‹ trÃ­ má»›i' : 'ÄÃ£ láº¥y vá»‹ trÃ­ thÃ nh cÃ´ng', 'success');
+    setStatus(true, 'ÄÃ£ cáº­p nháº­t link map', 'Link vá»‹ trÃ­ Ä‘Ã£ Ä‘Æ°á»£c Ä‘iá»n vÃ o Ã´ Google Maps.');
   } catch (error) {
-    let msg = 'Không lấy được vị trí. Hãy mở bằng Chrome hoặc dán link Google Maps thủ công.';
+    let msg = 'KhÃ´ng láº¥y Ä‘Æ°á»£c vá»‹ trÃ­. HÃ£y má»Ÿ báº±ng Chrome hoáº·c dÃ¡n link Google Maps thá»§ cÃ´ng.';
     if (error?.code === 1) {
-      msg = 'Bạn vừa từ chối quyền vị trí. Hãy cho phép quyền vị trí rồi bấm lại.';
+      msg = 'Báº¡n vá»«a tá»« chá»‘i quyá»n vá»‹ trÃ­. HÃ£y cho phÃ©p quyá»n vá»‹ trÃ­ rá»“i báº¥m láº¡i.';
     } else if (error?.code === 2) {
-      msg = 'Không xác định được vị trí hiện tại. Hãy kiểm tra GPS/Internet rồi thử lại.';
+      msg = 'KhÃ´ng xÃ¡c Ä‘á»‹nh Ä‘Æ°á»£c vá»‹ trÃ­ hiá»‡n táº¡i. HÃ£y kiá»ƒm tra GPS/Internet rá»“i thá»­ láº¡i.';
     } else if (error?.code === 3) {
-      msg = 'Lấy vị trí bị quá thời gian chờ. Hãy thử lại ở nơi sóng GPS tốt hơn.';
+      msg = 'Láº¥y vá»‹ trÃ­ bá»‹ quÃ¡ thá»i gian chá». HÃ£y thá»­ láº¡i á»Ÿ nÆ¡i sÃ³ng GPS tá»‘t hÆ¡n.';
     }
     setMapStatus(msg, 'error');
-    setStatus(true, 'Không lấy được vị trí', msg);
+    setStatus(true, 'KhÃ´ng láº¥y Ä‘Æ°á»£c vá»‹ trÃ­', msg);
   } finally {
     state.isLocatingAsset = false;
     if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = false;
@@ -1083,9 +945,8 @@ function isMessengerInAppBrowser() {
 
 async function processSelectedFiles(fileList, append = false) {
   if (!fileList.length) return;
-  invalidatePreparedPdfShare();
 
-  setStatus(true, 'Đang xử lý ảnh...', 'Đang nén ảnh và chuẩn bị phần gửi.');
+  setStatus(true, 'Äang xá»­ lÃ½ áº£nh...', 'Äang nÃ©n áº£nh vÃ  chuáº©n bá»‹ pháº§n gá»­i.');
   els.photoInput.disabled = true;
   if (els.cameraInput) els.cameraInput.disabled = true;
   if (els.addPhotosBtn) els.addPhotosBtn.disabled = true;
@@ -1093,14 +954,14 @@ async function processSelectedFiles(fileList, append = false) {
   try {
     const incoming = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
     if (!incoming.length) {
-      setStatus(true, 'Không có ảnh hợp lệ', 'Vui lòng chọn lại ảnh từ thư viện hoặc camera.');
+      setStatus(true, 'KhÃ´ng cÃ³ áº£nh há»£p lá»‡', 'Vui lÃ²ng chá»n láº¡i áº£nh tá»« thÆ° viá»‡n hoáº·c camera.');
       return;
     }
 
     const compressed = [];
     for (let i = 0; i < incoming.length; i += 1) {
       const file = incoming[i];
-      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
+      setStatus(true, 'Äang nÃ©n áº£nh...', `Äang xá»­ lÃ½ ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
       const blob = await compressImage(file);
       const offset = append ? state.compressedFiles.length : 0;
       compressed.push(blobToFile(blob, offset + i));
@@ -1120,13 +981,13 @@ async function processSelectedFiles(fileList, append = false) {
 
     const totalBytes = getTotalCompressedBytes();
     if (totalBytes > SAFE_LIMIT_BYTES) {
-      setStatus(true, 'Ảnh vượt ngưỡng gửi an toàn', 'Bạn nên xóa bớt ảnh rồi thử lại.');
+      setStatus(true, 'áº¢nh vÆ°á»£t ngÆ°á»¡ng gá»­i an toÃ n', 'Báº¡n nÃªn xÃ³a bá»›t áº£nh rá»“i thá»­ láº¡i.');
     } else {
-      setStatus(true, 'Đã sẵn sàng gửi', state.parts.length === 1 ? 'Ảnh đã sẵn sàng gửi.' : `Đã chuẩn bị ${state.parts.length} phần để gửi.`);
+      setStatus(true, 'ÄÃ£ sáºµn sÃ ng gá»­i', state.parts.length === 1 ? 'áº¢nh Ä‘Ã£ sáºµn sÃ ng gá»­i.' : `ÄÃ£ chuáº©n bá»‹ ${state.parts.length} pháº§n Ä‘á»ƒ gá»­i.`);
     }
   } catch (error) {
     console.error(error);
-    setStatus(true, 'Xử lý ảnh thất bại', error.message || 'Có lỗi khi nén ảnh.');
+    setStatus(true, 'Xá»­ lÃ½ áº£nh tháº¥t báº¡i', error.message || 'CÃ³ lá»—i khi nÃ©n áº£nh.');
   } finally {
     els.photoInput.disabled = false;
     els.photoInput.value = '';
@@ -1152,7 +1013,6 @@ function clearImageData() {
   state.compressedFiles = [];
   state.parts = [];
   state.deviceShareLimited = false;
-  invalidatePreparedPdfShare();
   rebuildPreparedParts();
   setImageHints([]);
 }
@@ -1165,7 +1025,7 @@ function createNewCase() {
   els.officerName.value = keepOfficerName;
   els.caseCode.value = '';
   clearImageData();
-  setStatus(true, 'Đã tạo hồ sơ mới', 'Bạn có thể nhập khách hàng tiếp theo ngay.');
+  setStatus(true, 'ÄÃ£ táº¡o há»“ sÆ¡ má»›i', 'Báº¡n cÃ³ thá»ƒ nháº­p khÃ¡ch hÃ ng tiáº¿p theo ngay.');
 }
 
 function initFormDefaults() {
@@ -1207,10 +1067,6 @@ function wireEvents() {
     els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
   }
 
-  if (els.sharePdfBtn) {
-    els.sharePdfBtn.addEventListener('click', shareSummaryPdf);
-  }
-
   [
     els.customerName,
     els.customerAddress,
@@ -1224,7 +1080,6 @@ function wireEvents() {
     .filter(Boolean)
     .forEach((input) => {
     input.addEventListener('input', () => {
-      invalidatePreparedPdfShare();
       if (!state.compressedFiles.length) return;
       const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
       state.autoMode = chooseAutoMode(getTotalCompressedBytes());
@@ -1253,3 +1108,4 @@ if (isMessengerInAppBrowser() && els.messengerBanner) {
 updateSummary();
 renderPreview();
 renderParts();
+
