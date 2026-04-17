@@ -49,7 +49,7 @@
         <form id="caseForm" class="form-grid" autocomplete="off">
           <label>
             <span>Mã khách hàng</span>
-            <input id="caseCode" name="caseCode" type="text" placeholder="6612-..........." />
+            <input id="caseCode" name="caseCode" type="text" placeholder="6612" />
           </label>
           <label>
             <span>Tên khách hàng</span>
@@ -57,19 +57,19 @@
           </label>
           <label>
             <span>Địa chỉ khách hàng</span>
-            <input id="customerAddress" name="customerAddress" type="text" placeholder="ấp Bàu trai, xã Hậu Nghĩa, tỉnh Tây Ninh" />
+            <input id="customerAddress" name="customerAddress" type="text" placeholder="ấp Bàu Trai, xã Hậu Nghĩa, tỉnh Tây Ninh" />
           </label>
           <label class="full">
             <span>Địa chỉ tài sản</span>
-            <input id="assetAddress" name="assetAddress" type="text" placeholder="ấp Bàu trai, xã Hậu Nghĩa, tỉnh Tây Ninh" />
+            <input id="assetAddress" name="assetAddress" type="text" placeholder="ấp Bàu Trai, xã Hậu Nghĩa, tỉnh Tây Ninh" />
           </label>
           <label class="full">
-            <span>Link Google Maps của tài sản nếu có</span>
+            <span>Tạo mã QR Code vị trí</span>
             <input id="mapsLink" name="mapsLink" type="url" placeholder="https://maps.google.com/..." />
             <div class="map-actions">
               <button type="button" class="map-btn" id="getAssetLocationBtn">Lấy vị trí tài sản</button>
             </div>
-            <div class="map-helper">Hoặc sao chép địa chỉ từ trang https://maps.google.com/</div>
+            <div class="map-helper">Có thể sao chép địa chỉ từ trang https://maps.google.com/ vào đây để tạo mã QR</div>
             <div class="map-status" id="mapStatus"></div>
           </label>
           <label>
@@ -77,8 +77,12 @@
             <input id="assessmentDate" name="assessmentDate" type="date" />
           </label>
           <label>
-            <span>Ghi chú</span>
+            <span>Thông tin GCN QSDĐ</span>
             <input id="notes" name="notes" type="text" placeholder="QSDĐ Số AI 123456, Tờ bản đồ số 6, thửa số 1..." />
+          </label>
+          <label>
+            <span>Ghi chú</span>
+            <input id="landNotes" name="landNotes" type="text" placeholder="Hiện trạng đất, tình trạng thực tế..." />
           </label>
           <label>
             <span>Tên CBTD</span>
@@ -163,8 +167,8 @@
 
         <div class="parts-list" id="partsList"></div>
         <div class="case-actions">
+          <button type="button" class="secondary-btn" id="sharePdfBtn">Gửi PDF</button>
           <button type="button" class="secondary-btn" id="exportPdfBtn">Xuất PDF</button>
-          <button type="button" class="secondary-btn" id="exportWordBtn">Xuất Word</button>
           <button type="button" class="secondary-btn" id="newCaseBtn">Tạo hồ sơ mới</button>
         </div>
       </section>
@@ -192,6 +196,7 @@
       </article>
     </template>
 
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
     <script src="./pdf-summary.js"></script>
     <script src="./app.js"></script>
   </body>

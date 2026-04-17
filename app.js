@@ -1,4 +1,4 @@
-﻿const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
+const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
 const NEAR_LIMIT_BYTES = 16.5 * 1024 * 1024;
 const STABLE_MAX_FILES_PER_PART = 6;
 const STABLE_MAX_BYTES_PER_PART = 10 * 1024 * 1024;
@@ -14,6 +14,7 @@ const els = {
   getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
+  landNotes: document.getElementById('landNotes'),
   officerName: document.getElementById('officerName'),
   photoInput: document.getElementById('photoInput'),
   cameraInput: document.getElementById('cameraInput'),
@@ -33,6 +34,7 @@ const els = {
   statusTitle: document.getElementById('statusTitle'),
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
+  sharePdfBtn: document.getElementById('sharePdfBtn'),
   exportPdfBtn: document.getElementById('exportPdfBtn'),
 
   messengerBanner: document.getElementById('messengerBanner')
@@ -252,6 +254,7 @@ function collectFormData() {
     mapsLink: els.mapsLink.value.trim(),
     assessmentDate: els.assessmentDate.value,
     notes: els.notes.value.trim(),
+    landNotes: els.landNotes?.value.trim() || '',
     recipientEmail: '',
     officerName: els.officerName.value.trim(),
     officerEmail: ''
@@ -418,7 +421,8 @@ function buildMailParts(parts) {
       `Phần: ${indexLabel}`,
       `Số ảnh: ${part.items.length}`,
       '',
-      `Ghi chú: ${form.notes || 'Hình ảnh hiện trạng tài sản bảo đảm'}`
+      `Thông tin GCN QSDĐ: ${form.notes || ''}`,
+      `Ghi chú: ${form.landNotes || ''}`
     ].join('\n');
 
     return {
@@ -628,13 +632,13 @@ async function copyPartText(part) {
 
 async function exportSummaryPdf() {
   if (!state.compressedFiles.length) {
-    setStatus(true, 'Chua co anh de xuat PDF', 'Vui long chon anh truoc khi xuat bien ban tom tat.');
+    setStatus(true, 'Chưa có ảnh để xuất PDF', 'Vui lòng chọn ảnh trước khi xuất file PDF.');
     return;
   }
 
   const form = collectFormData();
   if (!window.PdfSummary?.buildPdfSummaryHtml) {
-    setStatus(true, 'Thieu module PDF', 'Khong tim thay file pdf-summary.js.');
+    setStatus(true, 'Thiếu module PDF', 'Không tìm thấy file pdf-summary.js.');
     return;
   }
 
@@ -653,7 +657,7 @@ async function exportSummaryPdf() {
   win.document.close();
 
   try {
-    setStatus(true, 'Dang chuan bi PDF...', 'Dang nhung anh va dung bo cuc PDF.');
+    setStatus(true, 'Đang chuẩn bị file PDF ...', 'Dang nhung anh va dung bo cuc PDF.');
     const html = await window.PdfSummary.buildPdfSummaryHtml({
       form,
       files: state.compressedFiles,
@@ -692,7 +696,7 @@ async function exportSummaryPdf() {
       return;
     }
 
-    setStatus(true, 'Da mo che do in PDF', 'Chon "Save as PDF" de tai bien ban.');
+    setStatus(true, 'Đã xuất PDF', 'Chọn "Save as PDF" để lưu file.');
   } catch (error) {
     try {
       win.document.open();
@@ -702,6 +706,126 @@ async function exportSummaryPdf() {
       // ignore window write failure
     }
     setStatus(true, 'Xuat PDF that bai', error?.message || 'Khong tao duoc noi dung PDF.');
+  }
+}
+
+async function createSummaryPdfFile() {
+  if (!window.html2pdf) {
+    throw new Error('Khong tai duoc thu vien tao PDF.');
+  }
+  if (!window.PdfSummary?.buildPdfSummaryHtml) {
+    throw new Error('Khong tim thay module PDF.');
+  }
+  if (!state.compressedFiles.length) {
+    throw new Error('Chua co anh de tao PDF.');
+  }
+
+  const form = collectFormData();
+  const html = await window.PdfSummary.buildPdfSummaryHtml({
+    form,
+    files: state.compressedFiles,
+    totalBytes: getTotalCompressedBytes()
+  });
+  const fileName = `${getDateStamp()}_${toCompactCustomerName(els.customerName?.value || '')}_HinhAnh.pdf`;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-100000px';
+  container.style.top = '0';
+  container.style.width = '794px';
+  container.style.background = '#ffffff';
+  const styleHtml = Array.from(doc.head.querySelectorAll('style'))
+    .map((node) => node.outerHTML)
+    .join('');
+  container.innerHTML = `${styleHtml}${doc.body.innerHTML}`;
+  document.body.appendChild(container);
+
+  try {
+    const blob = await window
+      .html2pdf()
+      .set({
+        filename: fileName,
+        margin: 0,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
+      })
+      .from(container)
+      .toPdf()
+      .outputPdf('blob');
+
+    return new File([blob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+  } finally {
+    container.remove();
+  }
+}
+
+async function shareSummaryPdf() {
+  if (!state.compressedFiles.length) {
+    setStatus(true, 'Chua co anh de gui PDF', 'Vui long chon anh truoc khi gui PDF.');
+    return;
+  }
+
+  setStatus(true, 'Dang tao file PDF...', 'He thong dang dong goi anh vao file PDF.');
+
+  try {
+    const pdfFile = await createSummaryPdfFile();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Ho so tham dinh',
+          files: [pdfFile]
+        });
+        setStatus(true, 'Da mo chia se file PDF', 'Hay chon ung dung Mail/Gmail/Outlook de gui PDF.');
+        return;
+      } catch (shareError) {
+        if (shareError?.name === 'AbortError') {
+          setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
+          return;
+        }
+
+        try {
+          await navigator.share({
+            title: 'Ho so tham dinh',
+            text: 'File PDF da duoc tao. Ban chon Mail/Gmail de gui.'
+          });
+          setStatus(
+            true,
+            'Da mo man hinh chia se',
+            'Thiet bi khong ho tro gui kem PDF truc tiep tu web. Ban gui mail va dinh kem PDF thu cong.'
+          );
+          return;
+        } catch (textShareError) {
+          if (textShareError?.name === 'AbortError') {
+            setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
+            return;
+          }
+        }
+      }
+    }
+
+    const downloadUrl = URL.createObjectURL(pdfFile);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = pdfFile.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+    setStatus(
+      true,
+      'Thiet bi khong ho tro gui file PDF truc tiep',
+      'Da tai file PDF ve may. Ban mo Mail de dinh kem file vua tai.'
+    );
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
+      return;
+    }
+    setStatus(true, 'Gui PDF that bai', error?.message || 'Khong tao duoc file PDF.');
   }
 }
 
@@ -999,7 +1123,8 @@ async function processSelectedFiles(fileList, append = false) {
 function resetFormDefaults() {
   const now = new Date();
   els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  els.notes.value = 'Hình ảnh hiện trạng tài sản bảo đảm';
+  els.notes.value = '';
+  if (els.landNotes) els.landNotes.value = '';
   setMapStatus('');
 }
 
@@ -1062,6 +1187,10 @@ function wireEvents() {
     els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
   }
 
+  if (els.sharePdfBtn) {
+    els.sharePdfBtn.addEventListener('click', shareSummaryPdf);
+  }
+
   [
     els.customerName,
     els.customerAddress,
@@ -1069,6 +1198,7 @@ function wireEvents() {
     els.mapsLink,
     els.assessmentDate,
     els.notes,
+    els.landNotes,
     els.officerName
   ]
     .filter(Boolean)
