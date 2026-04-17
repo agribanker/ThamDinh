@@ -254,9 +254,7 @@ function collectFormData() {
     assessmentDate: els.assessmentDate.value,
     notes: els.notes.value.trim(),
     landNotes: els.landNotes?.value.trim() || '',
-    recipientEmail: '',
-    officerName: els.officerName.value.trim(),
-    officerEmail: ''
+    officerName: els.officerName.value.trim()
   };
 }
 
@@ -327,25 +325,29 @@ function getPresetConfig() {
 
 async function compressImage(file) {
   const image = await readFileAsImage(file);
-  const cfg = getPresetConfig();
+  try {
+    const cfg = getPresetConfig();
 
-  let maxEdge = cfg.maxEdge;
-  let quality = cfg.quality;
-  let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
+    let maxEdge = cfg.maxEdge;
+    let quality = cfg.quality;
+    let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
 
-  for (let i = 0; i < 6; i += 1) {
-    if (bestBlob.size <= cfg.targetBytes) break;
-    if (i % 2 === 0) {
-      maxEdge = Math.max(cfg.minEdge, Math.round(maxEdge * 0.9));
-    } else {
-      quality = Math.max(cfg.minQuality, Number((quality - 0.06).toFixed(2)));
+    for (let i = 0; i < 6; i += 1) {
+      if (bestBlob.size <= cfg.targetBytes) break;
+      if (i % 2 === 0) {
+        maxEdge = Math.max(cfg.minEdge, Math.round(maxEdge * 0.9));
+      } else {
+        quality = Math.max(cfg.minQuality, Number((quality - 0.06).toFixed(2)));
+      }
+
+      const candidate = await renderCompressedBlob(image, maxEdge, quality);
+      if (candidate.size < bestBlob.size) bestBlob = candidate;
     }
 
-    const candidate = await renderCompressedBlob(image, maxEdge, quality);
-    if (candidate.size < bestBlob.size) bestBlob = candidate;
+    return bestBlob;
+  } finally {
+    if (typeof image.close === 'function') image.close();
   }
-
-  return bestBlob;
 }
 
 function blobToFile(blob, index) {
@@ -793,14 +795,6 @@ async function sharePart(part) {
         return;
       }
     }
-  }
-
-  const recipient = collectFormData().recipientEmail;
-  if (recipient) {
-    const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(part.subject)}&body=${encodeURIComponent(part.body)}`;
-    window.location.href = mailto;
-    setStatus(true, 'Đã mở ứng dụng mail', 'Nếu không tự đính kèm ảnh, hãy thêm ảnh thủ công trong ứng dụng mail.');
-    return;
   }
 
   await copyPartText(part);
