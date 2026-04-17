@@ -782,13 +782,38 @@ async function shareSummaryPdf() {
   try {
     const pdfFile = await createSummaryPdfFile();
 
-    if (navigator.share && navigator.canShare?.({ files: [pdfFile] })) {
-      await navigator.share({
-        title: 'Ho so tham dinh',
-        files: [pdfFile]
-      });
-      setStatus(true, 'Da mo chia se file PDF', 'Hay chon ung dung Mail/Gmail/Outlook de gui PDF.');
-      return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Ho so tham dinh',
+          files: [pdfFile]
+        });
+        setStatus(true, 'Da mo chia se file PDF', 'Hay chon ung dung Mail/Gmail/Outlook de gui PDF.');
+        return;
+      } catch (shareError) {
+        if (shareError?.name === 'AbortError') {
+          setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
+          return;
+        }
+
+        try {
+          await navigator.share({
+            title: 'Ho so tham dinh',
+            text: 'File PDF da duoc tao. Ban chon Mail/Gmail de gui.'
+          });
+          setStatus(
+            true,
+            'Da mo man hinh chia se',
+            'Thiet bi khong ho tro gui kem PDF truc tiep tu web. Ban gui mail va dinh kem PDF thu cong.'
+          );
+          return;
+        } catch (textShareError) {
+          if (textShareError?.name === 'AbortError') {
+            setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
+            return;
+          }
+        }
+      }
     }
 
     const downloadUrl = URL.createObjectURL(pdfFile);
