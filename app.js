@@ -14,7 +14,6 @@ const els = {
   getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
-  landNotes: document.getElementById('landNotes'),
   officerName: document.getElementById('officerName'),
   photoInput: document.getElementById('photoInput'),
   cameraInput: document.getElementById('cameraInput'),
@@ -66,8 +65,8 @@ function toAsciiNoMark(text) {
   return String(text || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/Ä‘/g, 'd')
-    .replace(/Ä/g, 'D');
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
 }
 
 function toCompactCustomerName(text) {
@@ -129,7 +128,7 @@ function setImageHints(messages = []) {
     return;
   }
 
-  els.imageHints.innerHTML = messages.map((msg) => `â€¢ ${escapeHtml(msg)}`).join('<br>');
+  els.imageHints.innerHTML = messages.map((msg) => `• ${escapeHtml(msg)}`).join('<br>');
   els.imageHints.classList.remove('hidden');
 }
 
@@ -198,7 +197,7 @@ async function analyzeImageHints(files) {
     if (count > 1) duplicatedByNameSize += count - 1;
   });
   if (duplicatedByNameSize > 0) {
-    hints.push(`CÃ³ ${duplicatedByNameSize} áº£nh trÃ¹ng tÃªn + dung lÆ°á»£ng, nÃªn kiá»ƒm tra vÃ  xÃ³a bá»›t.`);
+    hints.push(`Có ${duplicatedByNameSize} ảnh trùng tên + dung lượng, nên kiểm tra và xóa bớt.`);
   }
 
   let duplicatedBySignature = 0;
@@ -206,15 +205,15 @@ async function analyzeImageHints(files) {
     if (arr.length > 1) duplicatedBySignature += arr.length - 1;
   });
   if (duplicatedBySignature > 0) {
-    hints.push(`CÃ³ ${duplicatedBySignature} áº£nh cÃ³ ná»™i dung ráº¥t giá»‘ng nhau (hash gáº§n trÃ¹ng).`);
+    hints.push(`Có ${duplicatedBySignature} ảnh có nội dung rất giống nhau (hash gần trùng).`);
   }
 
   if (tinyFiles.length > 0) {
-    hints.push(`CÃ³ ${tinyFiles.length} áº£nh dung lÆ°á»£ng ráº¥t nhá» (<100KB), nÃªn kiá»ƒm tra áº£nh má»/thiáº¿u chi tiáº¿t.`);
+    hints.push(`Có ${tinyFiles.length} ảnh dung lượng rất nhỏ (<100KB), nên kiểm tra ảnh mờ/thiếu chi tiết.`);
   }
 
   if (suspiciousSmallLargeDims.length > 0) {
-    hints.push(`CÃ³ ${suspiciousSmallLargeDims.length} áº£nh Ä‘á»™ phÃ¢n giáº£i lá»›n nhÆ°ng dung lÆ°á»£ng quÃ¡ tháº¥p, nÃªn xem láº¡i cháº¥t lÆ°á»£ng.`);
+    hints.push(`Có ${suspiciousSmallLargeDims.length} ảnh độ phân giải lớn nhưng dung lượng quá thấp, nên xem lại chất lượng.`);
   }
 
   return hints;
@@ -253,7 +252,6 @@ function collectFormData() {
     mapsLink: els.mapsLink.value.trim(),
     assessmentDate: els.assessmentDate.value,
     notes: els.notes.value.trim(),
-    landNotes: els.landNotes?.value.trim() || '',
     recipientEmail: '',
     officerName: els.officerName.value.trim(),
     officerEmail: ''
@@ -277,7 +275,7 @@ function fallbackReadFileAsImage(file) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error(`KhÃ´ng Ä‘á»c Ä‘Æ°á»£c áº£nh: ${file.name}`));
+      reject(new Error(`Không đọc được ảnh: ${file.name}`));
     };
     img.src = objectUrl;
   });
@@ -296,7 +294,7 @@ function renderCompressedBlob(image, maxEdge, quality) {
 
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) {
-    throw new Error('TrÃ¬nh duyá»‡t khÃ´ng há»— trá»£ canvas.');
+    throw new Error('Trình duyệt không hỗ trợ canvas.');
   }
 
   ctx.imageSmoothingEnabled = true;
@@ -309,7 +307,7 @@ function renderCompressedBlob(image, maxEdge, quality) {
     canvas.toBlob(
       (blob) => {
         if (!blob) {
-          reject(new Error('NÃ©n áº£nh tháº¥t báº¡i.'));
+          reject(new Error('Nén ảnh thất bại.'));
           return;
         }
         resolve(blob);
@@ -402,26 +400,25 @@ function buildMailParts(parts) {
 
   return parts.map((part, partIndex) => {
     const indexLabel = `${partIndex + 1}/${totalParts}`;
-    const subject = `[Tháº©m Ä‘á»‹nh] ${form.caseCode} - ${form.customerName || 'Khach hang'} - P${indexLabel} - CBTD: ${
+    const subject = `[Thẩm định] ${form.caseCode} - ${form.customerName || 'Khach hang'} - P${indexLabel} - CBTD: ${
       form.officerName || 'CBTD'
     }`;
 
     const body = [
-      `MÃ£ khÃ¡ch hÃ ng: ${form.caseCode}`,
+      `Mã khách hàng: ${form.caseCode}`,
       '',
-      `KhÃ¡ch hÃ ng: ${form.customerName || ''}`,
-      `Äá»‹a chá»‰ khÃ¡ch hÃ ng: ${form.customerAddress || ''}`,
-      `Äá»‹a chá»‰ TSÄB: ${form.assetAddress || ''}`,
+      `Khách hàng: ${form.customerName || ''}`,
+      `Địa chỉ khách hàng: ${form.customerAddress || ''}`,
+      `Địa chỉ TSĐB: ${form.assetAddress || ''}`,
       `Link map: ${form.mapsLink || ''}`,
-      `NgÃ y tháº©m Ä‘á»‹nh: ${formatDateForDisplay(form.assessmentDate) || ''}`,
+      `Ngày thẩm định: ${formatDateForDisplay(form.assessmentDate) || ''}`,
       '',
       `CBTD: ${form.officerName || ''}`,
       '',
-      `Pháº§n: ${indexLabel}`,
-      `Sá»‘ áº£nh: ${part.items.length}`,
+      `Phần: ${indexLabel}`,
+      `Số ảnh: ${part.items.length}`,
       '',
-      `ThÃ´ng tin GCN QSDÄ: ${form.notes || ''}`,
-      `Ghi chÃº: ${form.landNotes || ''}`
+      `Ghi chú: ${form.notes || 'Hình ảnh hiện trạng tài sản bảo đảm'}`
     ].join('\n');
 
     return {
@@ -466,28 +463,28 @@ function updateSummary() {
   els.partCount.textContent = String(state.parts.length);
 
   if (!state.compressedFiles.length) {
-    els.limitStatus.textContent = 'ChÆ°a cÃ³ áº£nh';
+    els.limitStatus.textContent = 'Chưa có ảnh';
     setWarning('');
     return;
   }
 
   if (compressedBytes > SAFE_LIMIT_BYTES) {
-    els.limitStatus.textContent = `VÆ°á»£t ngÆ°á»¡ng, Ä‘Ã£ chia ${state.parts.length} pháº§n`;
-    setWarning('Dung lÆ°á»£ng vÆ°á»£t ngÆ°á»¡ng gá»­i an toÃ n. HÃ£y xÃ³a bá»›t áº£nh rá»“i thá»­ láº¡i.');
+    els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
+    setWarning('Dung lượng vượt ngưỡng gửi an toàn. Hãy xóa bớt ảnh rồi thử lại.');
     return;
   }
 
   if (state.autoMode === 'stable' && state.parts.length > 1) {
-    els.limitStatus.textContent = `ÄÃ£ chia ${state.parts.length} pháº§n (á»•n Ä‘á»‹nh)`;
+    els.limitStatus.textContent = `Đã chia ${state.parts.length} phần (ổn định)`;
     if (compressedBytes >= NEAR_LIMIT_BYTES) {
-      setWarning('Gáº§n ngÆ°á»¡ng gá»­i an toÃ n, há»‡ thá»‘ng tá»± tÃ¡ch nhá» Ä‘á»ƒ gá»­i dá»… hÆ¡n.');
+      setWarning('Gần ngưỡng gửi an toàn, hệ thống tự tách nhỏ để gửi dễ hơn.');
     } else {
-      setWarning('Thiáº¿t bá»‹ giá»›i háº¡n chia sáº» nhiá»u áº£nh má»™t láº§n, há»‡ thá»‘ng Ä‘Ã£ tÃ¡ch nhá» Ä‘á»ƒ má»Ÿ mail á»•n Ä‘á»‹nh hÆ¡n.');
+      setWarning('Thiết bị giới hạn chia sẻ nhiều ảnh một lần, hệ thống đã tách nhỏ để mở mail ổn định hơn.');
     }
     return;
   }
 
-  els.limitStatus.textContent = state.parts.length > 1 ? `ÄÃ£ chia ${state.parts.length} pháº§n` : 'ÄÃ£ sáºµn sÃ ng gá»­i 1 pháº§n';
+  els.limitStatus.textContent = state.parts.length > 1 ? `Đã chia ${state.parts.length} phần` : 'Đã sẵn sàng gửi 1 phần';
   setWarning('');
 }
 
@@ -508,7 +505,7 @@ function makePreviewItem(file, index) {
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
   deleteBtn.className = 'preview-delete';
-  deleteBtn.textContent = 'XÃ³a';
+  deleteBtn.textContent = 'Xóa';
   deleteBtn.addEventListener('click', () => removeImageAt(index));
 
   media.appendChild(img);
@@ -538,7 +535,7 @@ function renderParts() {
   if (!state.parts.length) {
     const empty = document.createElement('div');
     empty.className = 'warning';
-    empty.textContent = 'ChÆ°a cÃ³ áº£nh Ä‘á»ƒ chuáº©n bá»‹ pháº§n gá»­i.';
+    empty.textContent = 'Chưa có ảnh để chuẩn bị phần gửi.';
     els.partsList.appendChild(empty);
     return;
   }
@@ -552,9 +549,9 @@ function renderParts() {
     const shareBtn = card.querySelector('.share-btn');
     const copyBtn = card.querySelector('.copy-btn');
 
-    title.textContent = `Pháº§n ${part.index}/${part.totalParts}`;
-    meta.textContent = `${part.files.length} áº£nh â€¢ ${formatBytes(part.size)}`;
-    badge.textContent = part.oversize ? 'Cáº§n kiá»ƒm tra' : 'Sáºµn sÃ ng';
+    title.textContent = `Phần ${part.index}/${part.totalParts}`;
+    meta.textContent = `${part.files.length} ảnh • ${formatBytes(part.size)}`;
+    badge.textContent = part.oversize ? 'Cần kiểm tra' : 'Sẵn sàng';
     preview.textContent = `${part.subject}\n\n${part.body}`;
 
     shareBtn.addEventListener('click', () => sharePart(part));
@@ -570,7 +567,7 @@ function removeImageAt(index) {
   if (index < state.originalFiles.length) state.originalFiles.splice(index, 1);
   rebuildPreparedParts();
   refreshImageHints();
-  setStatus(true, 'ÄÃ£ xÃ³a 1 áº£nh', 'ÄÃ£ cáº­p nháº­t láº¡i dung lÆ°á»£ng vÃ  pháº§n gá»­i.');
+  setStatus(true, 'Đã xóa 1 ảnh', 'Đã cập nhật lại dung lượng và phần gửi.');
 }
 
 function canShareFiles(files) {
@@ -598,7 +595,7 @@ function forceSplitForDeviceShare() {
   state.parts = forcedParts;
   updateSummary();
   renderParts();
-  setWarning('Thiáº¿t bá»‹ giá»›i háº¡n sá»‘ áº£nh/láº§n chia sáº». Há»‡ thá»‘ng Ä‘Ã£ tá»± chia nhá» Ä‘á»ƒ má»Ÿ mail á»•n Ä‘á»‹nh hÆ¡n.');
+  setWarning('Thiết bị giới hạn số ảnh/lần chia sẻ. Hệ thống đã tự chia nhỏ để mở mail ổn định hơn.');
   return true;
 }
 
@@ -623,21 +620,21 @@ async function copyText(text) {
 async function copyPartText(part) {
   try {
     await copyText(`${part.subject}\n\n${part.body}`);
-    setStatus(true, 'ÄÃ£ sao chÃ©p ná»™i dung mail', 'Báº¡n cÃ³ thá»ƒ dÃ¡n vÃ o á»©ng dá»¥ng mail náº¿u khÃ´ng chia sáº» file trá»±c tiáº¿p Ä‘Æ°á»£c.');
+    setStatus(true, 'Đã sao chép nội dung mail', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
   } catch (error) {
-    setStatus(true, 'KhÃ´ng sao chÃ©p Ä‘Æ°á»£c', error.message || 'TrÃ¬nh duyá»‡t khÃ´ng cho phÃ©p sao chÃ©p.');
+    setStatus(true, 'Không sao chép được', error.message || 'Trình duyệt không cho phép sao chép.');
   }
 }
 
 async function exportSummaryPdf() {
   if (!state.compressedFiles.length) {
-    setStatus(true, 'ChÆ°a cÃ³ áº£nh Ä‘á»ƒ xuáº¥t PDF', 'Vui lÃ²ng chá»n áº£nh trÆ°á»›c khi xuáº¥t file PDF.');
+    setStatus(true, 'Chua co anh de xuat PDF', 'Vui long chon anh truoc khi xuat bien ban tom tat.');
     return;
   }
 
   const form = collectFormData();
   if (!window.PdfSummary?.buildPdfSummaryHtml) {
-    setStatus(true, 'Thiáº¿u module PDF', 'KhÃ´ng tÃ¬m tháº¥y file pdf-summary.js.');
+    setStatus(true, 'Thieu module PDF', 'Khong tim thay file pdf-summary.js.');
     return;
   }
 
@@ -656,7 +653,7 @@ async function exportSummaryPdf() {
   win.document.close();
 
   try {
-    setStatus(true, 'Äang chuáº©n bá»‹ file PDF ...', 'Dang nhung anh va dung bo cuc PDF.');
+    setStatus(true, 'Dang chuan bi PDF...', 'Dang nhung anh va dung bo cuc PDF.');
     const html = await window.PdfSummary.buildPdfSummaryHtml({
       form,
       files: state.compressedFiles,
@@ -695,7 +692,7 @@ async function exportSummaryPdf() {
       return;
     }
 
-    setStatus(true, 'ÄÃ£ xuáº¥t PDF', 'Chá»n "Save as PDF" Ä‘á»ƒ lÆ°u file.');
+    setStatus(true, 'Da mo che do in PDF', 'Chon "Save as PDF" de tai bien ban.');
   } catch (error) {
     try {
       win.document.open();
@@ -708,9 +705,8 @@ async function exportSummaryPdf() {
   }
 }
 
-
 function buildShareConfirmMessage(part) {
-  return `Báº¡n sáº¯p má»Ÿ mail Ä‘á»ƒ gá»­i pháº§n ${part.index}/${part.totalParts}\n${part.files.length} áº£nh - ${formatBytes(part.size)}\n\nTiáº¿p tá»¥c / Há»§y`;
+  return `Bạn sắp mở mail để gửi phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
 }
 
 async function sharePart(part) {
@@ -736,8 +732,8 @@ async function sharePart(part) {
     if (wasSplit) {
       setStatus(
         true,
-        'Thiáº¿t bá»‹ khÃ´ng má»Ÿ mail vá»›i nhiá»u áº£nh cÃ¹ng lÃºc',
-        'ÄÃ£ tá»± chia nhá» pháº§n gá»­i theo cháº¿ Ä‘á»™ á»•n Ä‘á»‹nh. Báº¡n báº¥m gá»­i láº¡i tá»«ng pháº§n.'
+        'Thiết bị không mở mail với nhiều ảnh cùng lúc',
+        'Đã tự chia nhỏ phần gửi theo chế độ ổn định. Bạn bấm gửi lại từng phần.'
       );
       return;
     }
@@ -746,11 +742,11 @@ async function sharePart(part) {
   if (canShareFiles(files)) {
     try {
       await navigator.share(shareData);
-      setStatus(true, `ÄÃ£ má»Ÿ chia sáº» pháº§n ${part.index}/${part.totalParts}`, 'Chá»n Gmail/Outlook/Mail rá»“i báº¥m gá»­i trong á»©ng dá»¥ng mail.');
+      setStatus(true, `Đã mở chia sẻ phần ${part.index}/${part.totalParts}`, 'Chọn Gmail/Outlook/Mail rồi bấm gửi trong ứng dụng mail.');
       return;
     } catch (error) {
       if (error?.name === 'AbortError') {
-        setStatus(true, 'ÄÃ£ há»§y chia sáº»', 'Báº¡n vá»«a Ä‘Ã³ng báº£ng chia sáº».');
+        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
         return;
       }
       if (files.length > 1) {
@@ -758,8 +754,8 @@ async function sharePart(part) {
         if (wasSplit) {
           setStatus(
             true,
-            'Thiáº¿t bá»‹ tá»« chá»‘i chia sáº» nhiá»u áº£nh cÃ¹ng lÃºc',
-            'ÄÃ£ tá»± chia nhá» áº£nh Ä‘á»ƒ gá»­i á»•n Ä‘á»‹nh hÆ¡n. Báº¡n báº¥m gá»­i láº¡i tá»«ng pháº§n.'
+            'Thiết bị từ chối chia sẻ nhiều ảnh cùng lúc',
+            'Đã tự chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
           );
           return;
         }
@@ -772,8 +768,8 @@ async function sharePart(part) {
     if (wasSplit) {
       setStatus(
         true,
-        'Thiáº¿t bá»‹ giá»›i háº¡n sá»‘ file Ä‘Ã­nh kÃ¨m',
-        'ÄÃ£ chia nhá» áº£nh Ä‘á»ƒ gá»­i á»•n Ä‘á»‹nh hÆ¡n. Báº¡n báº¥m gá»­i láº¡i tá»«ng pháº§n.'
+        'Thiết bị giới hạn số file đính kèm',
+        'Đã chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
       );
       return;
     }
@@ -784,13 +780,13 @@ async function sharePart(part) {
       await navigator.share(textOnlyData);
       setStatus(
         true,
-        'ÄÃ£ má»Ÿ á»©ng dá»¥ng chia sáº»',
-        'Thiáº¿t bá»‹ khÃ´ng há»— trá»£ Ä‘Ã­nh kÃ¨m file trá»±c tiáº¿p tá»« web. HÃ£y Ä‘Ã­nh kÃ¨m áº£nh thá»§ cÃ´ng trong á»©ng dá»¥ng mail.'
+        'Đã mở ứng dụng chia sẻ',
+        'Thiết bị không hỗ trợ đính kèm file trực tiếp từ web. Hãy đính kèm ảnh thủ công trong ứng dụng mail.'
       );
       return;
     } catch (error) {
       if (error?.name === 'AbortError') {
-        setStatus(true, 'ÄÃ£ há»§y chia sáº»', 'Báº¡n vá»«a Ä‘Ã³ng báº£ng chia sáº».');
+        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
         return;
       }
     }
@@ -800,12 +796,12 @@ async function sharePart(part) {
   if (recipient) {
     const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(part.subject)}&body=${encodeURIComponent(part.body)}`;
     window.location.href = mailto;
-    setStatus(true, 'ÄÃ£ má»Ÿ á»©ng dá»¥ng mail', 'Náº¿u khÃ´ng tá»± Ä‘Ã­nh kÃ¨m áº£nh, hÃ£y thÃªm áº£nh thá»§ cÃ´ng trong á»©ng dá»¥ng mail.');
+    setStatus(true, 'Đã mở ứng dụng mail', 'Nếu không tự đính kèm ảnh, hãy thêm ảnh thủ công trong ứng dụng mail.');
     return;
   }
 
   await copyPartText(part);
-  setStatus(true, 'Thiáº¿t bá»‹ khÃ´ng chia sáº» file trá»±c tiáº¿p Ä‘Æ°á»£c', 'ÄÃ£ sao chÃ©p ná»™i dung, báº¡n cÃ³ thá»ƒ dÃ¡n vÃ o mail vÃ  Ä‘Ã­nh kÃ¨m áº£nh thá»§ cÃ´ng.');
+  setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã sao chép nội dung, bạn có thể dán vào mail và đính kèm ảnh thủ công.');
 }
 
 function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 22000, maximumAge: 30000 }) {
@@ -896,7 +892,7 @@ async function createQrAttachmentIfNeeded(part) {
 
 async function fillAssetLocation() {
   if (state.isLocatingAsset) {
-    setStatus(true, 'Äang láº¥y vá»‹ trÃ­ tÃ i sáº£n...', 'Há»‡ thá»‘ng Ä‘ang Ä‘á»‹nh vá»‹, vui lÃ²ng chá».');
+    setStatus(true, 'Đang lấy vị trí tài sản...', 'Hệ thống đang định vị, vui lòng chờ.');
     return;
   }
 
@@ -904,8 +900,8 @@ async function fillAssetLocation() {
   if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = true;
 
   try {
-    setMapStatus('Äang chá» cáº¥p quyá»n vá»‹ trÃ­ vÃ  Ä‘á»‹nh vá»‹ GPS...');
-    setStatus(true, 'Äang láº¥y vá»‹ trÃ­ tÃ i sáº£n...', 'Vui lÃ²ng chá» vÃ i giÃ¢y Ä‘á»ƒ GPS Ä‘á»‹nh vá»‹.');
+    setMapStatus('Đang chờ cấp quyền vị trí và định vị GPS...');
+    setStatus(true, 'Đang lấy vị trí tài sản...', 'Vui lòng chờ vài giây để GPS định vị.');
     const pos = await getPositionBestEffort();
     const lat = Number(pos.coords.latitude).toFixed(6);
     const lng = Number(pos.coords.longitude).toFixed(6);
@@ -919,19 +915,19 @@ async function fillAssetLocation() {
       // copy may fail in some in-app browsers
     }
 
-    setMapStatus(hadValue ? 'ÄÃ£ cáº­p nháº­t vá»‹ trÃ­ má»›i' : 'ÄÃ£ láº¥y vá»‹ trÃ­ thÃ nh cÃ´ng', 'success');
-    setStatus(true, 'ÄÃ£ cáº­p nháº­t link map', 'Link vá»‹ trÃ­ Ä‘Ã£ Ä‘Æ°á»£c Ä‘iá»n vÃ o Ã´ Google Maps.');
+    setMapStatus(hadValue ? 'Đã cập nhật vị trí mới' : 'Đã lấy vị trí thành công', 'success');
+    setStatus(true, 'Đã cập nhật link map', 'Link vị trí đã được điền vào ô Google Maps.');
   } catch (error) {
-    let msg = 'KhÃ´ng láº¥y Ä‘Æ°á»£c vá»‹ trÃ­. HÃ£y má»Ÿ báº±ng Chrome hoáº·c dÃ¡n link Google Maps thá»§ cÃ´ng.';
+    let msg = 'Không lấy được vị trí. Hãy mở bằng Chrome hoặc dán link Google Maps thủ công.';
     if (error?.code === 1) {
-      msg = 'Báº¡n vá»«a tá»« chá»‘i quyá»n vá»‹ trÃ­. HÃ£y cho phÃ©p quyá»n vá»‹ trÃ­ rá»“i báº¥m láº¡i.';
+      msg = 'Bạn vừa từ chối quyền vị trí. Hãy cho phép quyền vị trí rồi bấm lại.';
     } else if (error?.code === 2) {
-      msg = 'KhÃ´ng xÃ¡c Ä‘á»‹nh Ä‘Æ°á»£c vá»‹ trÃ­ hiá»‡n táº¡i. HÃ£y kiá»ƒm tra GPS/Internet rá»“i thá»­ láº¡i.';
+      msg = 'Không xác định được vị trí hiện tại. Hãy kiểm tra GPS/Internet rồi thử lại.';
     } else if (error?.code === 3) {
-      msg = 'Láº¥y vá»‹ trÃ­ bá»‹ quÃ¡ thá»i gian chá». HÃ£y thá»­ láº¡i á»Ÿ nÆ¡i sÃ³ng GPS tá»‘t hÆ¡n.';
+      msg = 'Lấy vị trí bị quá thời gian chờ. Hãy thử lại ở nơi sóng GPS tốt hơn.';
     }
     setMapStatus(msg, 'error');
-    setStatus(true, 'KhÃ´ng láº¥y Ä‘Æ°á»£c vá»‹ trÃ­', msg);
+    setStatus(true, 'Không lấy được vị trí', msg);
   } finally {
     state.isLocatingAsset = false;
     if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = false;
@@ -946,7 +942,7 @@ function isMessengerInAppBrowser() {
 async function processSelectedFiles(fileList, append = false) {
   if (!fileList.length) return;
 
-  setStatus(true, 'Äang xá»­ lÃ½ áº£nh...', 'Äang nÃ©n áº£nh vÃ  chuáº©n bá»‹ pháº§n gá»­i.');
+  setStatus(true, 'Đang xử lý ảnh...', 'Đang nén ảnh và chuẩn bị phần gửi.');
   els.photoInput.disabled = true;
   if (els.cameraInput) els.cameraInput.disabled = true;
   if (els.addPhotosBtn) els.addPhotosBtn.disabled = true;
@@ -954,14 +950,14 @@ async function processSelectedFiles(fileList, append = false) {
   try {
     const incoming = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
     if (!incoming.length) {
-      setStatus(true, 'KhÃ´ng cÃ³ áº£nh há»£p lá»‡', 'Vui lÃ²ng chá»n láº¡i áº£nh tá»« thÆ° viá»‡n hoáº·c camera.');
+      setStatus(true, 'Không có ảnh hợp lệ', 'Vui lòng chọn lại ảnh từ thư viện hoặc camera.');
       return;
     }
 
     const compressed = [];
     for (let i = 0; i < incoming.length; i += 1) {
       const file = incoming[i];
-      setStatus(true, 'Äang nÃ©n áº£nh...', `Äang xá»­ lÃ½ ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
+      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
       const blob = await compressImage(file);
       const offset = append ? state.compressedFiles.length : 0;
       compressed.push(blobToFile(blob, offset + i));
@@ -981,13 +977,13 @@ async function processSelectedFiles(fileList, append = false) {
 
     const totalBytes = getTotalCompressedBytes();
     if (totalBytes > SAFE_LIMIT_BYTES) {
-      setStatus(true, 'áº¢nh vÆ°á»£t ngÆ°á»¡ng gá»­i an toÃ n', 'Báº¡n nÃªn xÃ³a bá»›t áº£nh rá»“i thá»­ láº¡i.');
+      setStatus(true, 'Ảnh vượt ngưỡng gửi an toàn', 'Bạn nên xóa bớt ảnh rồi thử lại.');
     } else {
-      setStatus(true, 'ÄÃ£ sáºµn sÃ ng gá»­i', state.parts.length === 1 ? 'áº¢nh Ä‘Ã£ sáºµn sÃ ng gá»­i.' : `ÄÃ£ chuáº©n bá»‹ ${state.parts.length} pháº§n Ä‘á»ƒ gá»­i.`);
+      setStatus(true, 'Đã sẵn sàng gửi', state.parts.length === 1 ? 'Ảnh đã sẵn sàng gửi.' : `Đã chuẩn bị ${state.parts.length} phần để gửi.`);
     }
   } catch (error) {
     console.error(error);
-    setStatus(true, 'Xá»­ lÃ½ áº£nh tháº¥t báº¡i', error.message || 'CÃ³ lá»—i khi nÃ©n áº£nh.');
+    setStatus(true, 'Xử lý ảnh thất bại', error.message || 'Có lỗi khi nén ảnh.');
   } finally {
     els.photoInput.disabled = false;
     els.photoInput.value = '';
@@ -1003,8 +999,7 @@ async function processSelectedFiles(fileList, append = false) {
 function resetFormDefaults() {
   const now = new Date();
   els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  els.notes.value = '';
-  if (els.landNotes) els.landNotes.value = '';
+  els.notes.value = 'Hình ảnh hiện trạng tài sản bảo đảm';
   setMapStatus('');
 }
 
@@ -1025,7 +1020,7 @@ function createNewCase() {
   els.officerName.value = keepOfficerName;
   els.caseCode.value = '';
   clearImageData();
-  setStatus(true, 'ÄÃ£ táº¡o há»“ sÆ¡ má»›i', 'Báº¡n cÃ³ thá»ƒ nháº­p khÃ¡ch hÃ ng tiáº¿p theo ngay.');
+  setStatus(true, 'Đã tạo hồ sơ mới', 'Bạn có thể nhập khách hàng tiếp theo ngay.');
 }
 
 function initFormDefaults() {
@@ -1074,7 +1069,6 @@ function wireEvents() {
     els.mapsLink,
     els.assessmentDate,
     els.notes,
-    els.landNotes,
     els.officerName
   ]
     .filter(Boolean)
@@ -1108,4 +1102,3 @@ if (isMessengerInAppBrowser() && els.messengerBanner) {
 updateSummary();
 renderPreview();
 renderParts();
-
