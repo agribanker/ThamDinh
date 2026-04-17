@@ -14,6 +14,7 @@ const els = {
   getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
+  landNotes: document.getElementById('landNotes'),
   officerName: document.getElementById('officerName'),
   photoInput: document.getElementById('photoInput'),
   cameraInput: document.getElementById('cameraInput'),
@@ -252,6 +253,7 @@ function collectFormData() {
     mapsLink: els.mapsLink.value.trim(),
     assessmentDate: els.assessmentDate.value,
     notes: els.notes.value.trim(),
+    landNotes: els.landNotes?.value.trim() || '',
     recipientEmail: '',
     officerName: els.officerName.value.trim(),
     officerEmail: ''
@@ -418,7 +420,8 @@ function buildMailParts(parts) {
       `Phần: ${indexLabel}`,
       `Số ảnh: ${part.items.length}`,
       '',
-      `Ghi chú: ${form.notes || ''}`
+      `Thông tin GCN QSDĐ: ${form.notes || ''}`,
+      `Ghi chú: ${form.landNotes || ''}`
     ].join('\n');
 
     return {
@@ -1000,6 +1003,7 @@ function resetFormDefaults() {
   const now = new Date();
   els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   els.notes.value = '';
+  if (els.landNotes) els.landNotes.value = '';
   setMapStatus('');
 }
 
@@ -1069,6 +1073,7 @@ function wireEvents() {
     els.mapsLink,
     els.assessmentDate,
     els.notes,
+    els.landNotes,
     els.officerName
   ]
     .filter(Boolean)
