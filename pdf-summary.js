@@ -237,7 +237,8 @@
           <li><span class="label">Ngày thẩm định:</span> ${escapeHtml(toDisplayDate(form.assessmentDate) || '')}</li>
           <li><span class="label">CBTD:</span> ${escapeHtml(form.officerName || '')}</li>
           <li><span class="label">Link map:</span> <span class="map-link">${escapeHtml(mapLink || '')}</span></li>
-          <li><span class="label">Ghi chú:</span> ${escapeHtml(form.notes || '')}</li>
+          <li><span class="label">Thông tin GCN QSDĐ:</span> ${escapeHtml(form.notes || '')}</li>
+          <li><span class="label">Ghi chú:</span> ${escapeHtml(form.landNotes || '')}</li>
         </ul>
         <div class="qr-side">
           <div class="qr-box">
