@@ -735,7 +735,10 @@ async function createSummaryPdfFile() {
   container.style.top = '0';
   container.style.width = '794px';
   container.style.background = '#ffffff';
-  container.innerHTML = doc.body.innerHTML;
+  const styleHtml = Array.from(doc.head.querySelectorAll('style'))
+    .map((node) => node.outerHTML)
+    .join('');
+  container.innerHTML = `${styleHtml}${doc.body.innerHTML}`;
   document.body.appendChild(container);
 
   try {
