@@ -34,6 +34,7 @@ const els = {
   statusTitle: document.getElementById('statusTitle'),
   statusDesc: document.getElementById('statusDesc'),
   newCaseBtn: document.getElementById('newCaseBtn'),
+  sharePdfBtn: document.getElementById('sharePdfBtn'),
   exportPdfBtn: document.getElementById('exportPdfBtn'),
 
   messengerBanner: document.getElementById('messengerBanner')
@@ -708,6 +709,110 @@ async function exportSummaryPdf() {
   }
 }
 
+async function imageFileToPdfData(file, maxEdge = 1800, quality = 0.82) {
+  const image = await readFileAsImage(file);
+  const width = image.naturalWidth || image.width || 0;
+  const height = image.naturalHeight || image.height || 0;
+  const scale = width > 0 && height > 0 ? Math.min(1, maxEdge / Math.max(width, height)) : 1;
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) throw new Error('Trinh duyet khong ho tro canvas.');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+  if (typeof image.close === 'function') image.close();
+
+  return {
+    dataUrl: canvas.toDataURL('image/jpeg', quality),
+    width: targetWidth,
+    height: targetHeight
+  };
+}
+
+async function createSummaryPdfFile() {
+  const JsPdfCtor = window.jspdf?.jsPDF;
+  if (!JsPdfCtor) {
+    throw new Error('Khong tai duoc thu vien PDF.');
+  }
+  if (!state.compressedFiles.length) {
+    throw new Error('Chua co anh de tao PDF.');
+  }
+
+  const pdf = new JsPdfCtor({ orientation: 'p', unit: 'pt', format: 'a4' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 24;
+
+  for (let i = 0; i < state.compressedFiles.length; i += 1) {
+    if (i > 0) pdf.addPage();
+    const file = state.compressedFiles[i];
+    const img = await imageFileToPdfData(file);
+
+    const availableWidth = pageWidth - margin * 2;
+    const availableHeight = pageHeight - margin * 2;
+    const ratio = Math.min(availableWidth / img.width, availableHeight / img.height);
+    const drawWidth = Math.max(1, img.width * ratio);
+    const drawHeight = Math.max(1, img.height * ratio);
+    const x = (pageWidth - drawWidth) / 2;
+    const y = (pageHeight - drawHeight) / 2;
+
+    pdf.addImage(img.dataUrl, 'JPEG', x, y, drawWidth, drawHeight, undefined, 'FAST');
+  }
+
+  const fileName = `${getDateStamp()}_${toCompactCustomerName(els.customerName?.value || '')}_HinhAnh.pdf`;
+  const blob = pdf.output('blob');
+  return new File([blob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+}
+
+async function shareSummaryPdf() {
+  if (!state.compressedFiles.length) {
+    setStatus(true, 'Chua co anh de gui PDF', 'Vui long chon anh truoc khi gui PDF.');
+    return;
+  }
+
+  setStatus(true, 'Dang tao file PDF...', 'He thong dang dong goi anh vao file PDF.');
+
+  try {
+    const pdfFile = await createSummaryPdfFile();
+
+    if (navigator.share && navigator.canShare?.({ files: [pdfFile] })) {
+      await navigator.share({
+        title: 'Ho so tham dinh',
+        files: [pdfFile]
+      });
+      setStatus(true, 'Da mo chia se file PDF', 'Hay chon ung dung Mail/Gmail/Outlook de gui PDF.');
+      return;
+    }
+
+    const downloadUrl = URL.createObjectURL(pdfFile);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = pdfFile.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+    setStatus(
+      true,
+      'Thiet bi khong ho tro gui file PDF truc tiep',
+      'Da tai file PDF ve may. Ban mo Mail de dinh kem file vua tai.'
+    );
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      setStatus(true, 'Da huy gui PDF', 'Ban vua dong bang chia se.');
+      return;
+    }
+    setStatus(true, 'Gui PDF that bai', error?.message || 'Khong tao duoc file PDF.');
+  }
+}
+
 function buildShareConfirmMessage(part) {
   return `Bạn sắp mở mail để gửi phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
 }
@@ -1064,6 +1169,10 @@ function wireEvents() {
 
   if (els.exportPdfBtn) {
     els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
+  }
+
+  if (els.sharePdfBtn) {
+    els.sharePdfBtn.addEventListener('click', shareSummaryPdf);
   }
 
   [
