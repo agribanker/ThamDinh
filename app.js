@@ -709,66 +709,54 @@ async function exportSummaryPdf() {
   }
 }
 
-async function imageFileToPdfData(file, maxEdge = 1800, quality = 0.82) {
-  const image = await readFileAsImage(file);
-  const width = image.naturalWidth || image.width || 0;
-  const height = image.naturalHeight || image.height || 0;
-  const scale = width > 0 && height > 0 ? Math.min(1, maxEdge / Math.max(width, height)) : 1;
-  const targetWidth = Math.max(1, Math.round(width * scale));
-  const targetHeight = Math.max(1, Math.round(height * scale));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
-
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) throw new Error('Trinh duyet khong ho tro canvas.');
-
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, targetWidth, targetHeight);
-  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
-  if (typeof image.close === 'function') image.close();
-
-  return {
-    dataUrl: canvas.toDataURL('image/jpeg', quality),
-    width: targetWidth,
-    height: targetHeight
-  };
-}
-
 async function createSummaryPdfFile() {
-  const JsPdfCtor = window.jspdf?.jsPDF;
-  if (!JsPdfCtor) {
-    throw new Error('Khong tai duoc thu vien PDF.');
+  if (!window.html2pdf) {
+    throw new Error('Khong tai duoc thu vien tao PDF.');
+  }
+  if (!window.PdfSummary?.buildPdfSummaryHtml) {
+    throw new Error('Khong tim thay module PDF.');
   }
   if (!state.compressedFiles.length) {
     throw new Error('Chua co anh de tao PDF.');
   }
 
-  const pdf = new JsPdfCtor({ orientation: 'p', unit: 'pt', format: 'a4' });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 24;
-
-  for (let i = 0; i < state.compressedFiles.length; i += 1) {
-    if (i > 0) pdf.addPage();
-    const file = state.compressedFiles[i];
-    const img = await imageFileToPdfData(file);
-
-    const availableWidth = pageWidth - margin * 2;
-    const availableHeight = pageHeight - margin * 2;
-    const ratio = Math.min(availableWidth / img.width, availableHeight / img.height);
-    const drawWidth = Math.max(1, img.width * ratio);
-    const drawHeight = Math.max(1, img.height * ratio);
-    const x = (pageWidth - drawWidth) / 2;
-    const y = (pageHeight - drawHeight) / 2;
-
-    pdf.addImage(img.dataUrl, 'JPEG', x, y, drawWidth, drawHeight, undefined, 'FAST');
-  }
-
+  const form = collectFormData();
+  const html = await window.PdfSummary.buildPdfSummaryHtml({
+    form,
+    files: state.compressedFiles,
+    totalBytes: getTotalCompressedBytes()
+  });
   const fileName = `${getDateStamp()}_${toCompactCustomerName(els.customerName?.value || '')}_HinhAnh.pdf`;
-  const blob = pdf.output('blob');
-  return new File([blob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-100000px';
+  container.style.top = '0';
+  container.style.width = '794px';
+  container.style.background = '#ffffff';
+  container.innerHTML = doc.body.innerHTML;
+  document.body.appendChild(container);
+
+  try {
+    const blob = await window
+      .html2pdf()
+      .set({
+        filename: fileName,
+        margin: 0,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
+      })
+      .from(container)
+      .toPdf()
+      .outputPdf('blob');
+
+    return new File([blob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+  } finally {
+    container.remove();
+  }
 }
 
 async function shareSummaryPdf() {
