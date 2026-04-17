@@ -631,13 +631,13 @@ async function copyPartText(part) {
 
 async function exportSummaryPdf() {
   if (!state.compressedFiles.length) {
-    setStatus(true, 'Chua co anh de xuat PDF', 'Vui long chon anh truoc khi xuat bien ban tom tat.');
+    setStatus(true, 'Chưa có ảnh để xuất PDF', 'Vui lòng chọn ảnh trước khi xuất file PDF.');
     return;
   }
 
   const form = collectFormData();
   if (!window.PdfSummary?.buildPdfSummaryHtml) {
-    setStatus(true, 'Thieu module PDF', 'Khong tim thay file pdf-summary.js.');
+    setStatus(true, 'Thiếu module PDF', 'Không tìm thấy file pdf-summary.js.');
     return;
   }
 
@@ -656,7 +656,7 @@ async function exportSummaryPdf() {
   win.document.close();
 
   try {
-    setStatus(true, 'Dang chuan bi PDF...', 'Dang nhung anh va dung bo cuc PDF.');
+    setStatus(true, 'Đang chuẩn bị file PDF ...', 'Dang nhung anh va dung bo cuc PDF.');
     const html = await window.PdfSummary.buildPdfSummaryHtml({
       form,
       files: state.compressedFiles,
@@ -695,7 +695,7 @@ async function exportSummaryPdf() {
       return;
     }
 
-    setStatus(true, 'Da mo che do in PDF', 'Chon "Save as PDF" de tai bien ban.');
+    setStatus(true, 'Đã xuất PDF', 'Chọn "Save as PDF" để lưu file.');
   } catch (error) {
     try {
       win.document.open();
