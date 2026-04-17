@@ -3,6 +3,18 @@ const NEAR_LIMIT_BYTES = 16.5 * 1024 * 1024;
 const STABLE_MAX_FILES_PER_PART = 6;
 const STABLE_MAX_BYTES_PER_PART = 10 * 1024 * 1024;
 const DEVICE_SAFE_FILES_PER_SHARE = 8;
+const DRAFT_STORAGE_KEY = 'agribank_tham_dinh_text_draft_v1';
+const DRAFT_FIELD_KEYS = [
+  'caseCode',
+  'customerName',
+  'customerAddress',
+  'assetAddress',
+  'mapsLink',
+  'assessmentDate',
+  'notes',
+  'landNotes',
+  'officerName'
+];
 
 const els = {
   caseCode: document.getElementById('caseCode'),
@@ -51,6 +63,50 @@ const state = {
   deviceShareLimited: false,
   isLocatingAsset: false
 };
+
+function collectDraftData() {
+  const output = {};
+  DRAFT_FIELD_KEYS.forEach((key) => {
+    const input = els[key];
+    if (!input) return;
+    output[key] = input.value || '';
+  });
+  return output;
+}
+
+function saveDraftData() {
+  try {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(collectDraftData()));
+  } catch {
+    // Ignore storage errors (private mode, quota, blocked storage).
+  }
+}
+
+function restoreDraftData() {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return;
+
+    DRAFT_FIELD_KEYS.forEach((key) => {
+      const input = els[key];
+      if (!input) return;
+      if (typeof data[key] !== 'string') return;
+      input.value = data[key];
+    });
+  } catch {
+    // Ignore malformed draft payloads.
+  }
+}
+
+function clearDraftData() {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
 
 function formatDateForDisplay(dateStr) {
   if (!dateStr) return '';
@@ -906,6 +962,7 @@ async function fillAssetLocation() {
     const hadValue = Boolean(els.mapsLink.value.trim());
 
     els.mapsLink.value = url;
+    saveDraftData();
     try {
       await copyText(url);
     } catch {
@@ -1011,12 +1068,16 @@ function clearImageData() {
 }
 
 function createNewCase() {
+  const shouldCreate = window.confirm('Bạn có chắc muốn tạo hồ sơ mới? Dữ liệu hiện tại sẽ bị xóa.');
+  if (!shouldCreate) return;
+
   const keepOfficerName = els.officerName.value.trim();
 
   document.getElementById('caseForm').reset();
   resetFormDefaults();
   els.officerName.value = keepOfficerName;
   els.caseCode.value = '';
+  clearDraftData();
   clearImageData();
   setStatus(true, 'Đã tạo hồ sơ mới', 'Bạn có thể nhập khách hàng tiếp theo ngay.');
 }
@@ -1082,6 +1143,12 @@ function wireEvents() {
     });
   });
 
+  DRAFT_FIELD_KEYS.map((key) => els[key])
+    .filter(Boolean)
+    .forEach((input) => {
+      input.addEventListener('input', saveDraftData);
+    });
+
   els.photoInput.addEventListener('change', (event) => {
     processSelectedFiles(event.target.files || [], state.addModeNextPick);
   });
@@ -1094,6 +1161,7 @@ function wireEvents() {
 }
 
 initFormDefaults();
+restoreDraftData();
 wireEvents();
 if (isMessengerInAppBrowser() && els.messengerBanner) {
   els.messengerBanner.classList.remove('hidden');
