@@ -24,6 +24,7 @@ const els = {
   mapsLink: document.getElementById('mapsLink'),
   mapStatus: document.getElementById('mapStatus'),
   getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
+  btnOpenGuland: document.getElementById('btnOpenGuland'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
   landNotes: document.getElementById('landNotes'),
@@ -61,7 +62,9 @@ const state = {
   addModeNextPick: false,
   autoMode: 'compact',
   deviceShareLimited: false,
-  isLocatingAsset: false
+  isLocatingAsset: false,
+  lat: null,
+  lng: null
 };
 
 function collectDraftData() {
@@ -902,6 +905,15 @@ function normalizeMapLink(raw) {
   return value;
 }
 
+function openGulandTab() {
+  if (!state.lat || !state.lng) {
+    window.alert('Vui lòng lấy vị trí tài sản trước!');
+    return;
+  }
+  const gulandUrl = `https://guland.vn/soi-quy-hoach?lat=${state.lat}&lng=${state.lng}&zoom=16`;
+  window.open(gulandUrl, '_blank');
+}
+
 function buildQrUrlMain(text) {
   if (!text) return '';
   return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
@@ -958,6 +970,12 @@ async function fillAssetLocation() {
     const pos = await getPositionBestEffort();
     const lat = Number(pos.coords.latitude).toFixed(6);
     const lng = Number(pos.coords.longitude).toFixed(6);
+    state.lat = lat;
+    state.lng = lng;
+    if (els.btnOpenGuland) {
+      els.btnOpenGuland.disabled = false;
+      els.btnOpenGuland.style.opacity = '1';
+    }
     const url = buildGoogleMapsLink(lat, lng);
     const hadValue = Boolean(els.mapsLink.value.trim());
 
@@ -1090,6 +1108,9 @@ function initFormDefaults() {
 function wireEvents() {
   if (els.getAssetLocationBtn) {
     els.getAssetLocationBtn.addEventListener('click', fillAssetLocation);
+  }
+  if (els.btnOpenGuland) {
+    els.btnOpenGuland.addEventListener('click', openGulandTab);
   }
 
   if (els.pickLibraryBtn) {
