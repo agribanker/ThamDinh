@@ -905,69 +905,9 @@ function normalizeMapLink(raw) {
   return value;
 }
 
-function parseLatLngFromText(text) {
-  if (!text) return null;
-  const match = String(text).match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
-  if (!match) return null;
-  const lat = Number(match[1]);
-  const lng = Number(match[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { lat: lat.toFixed(6), lng: lng.toFixed(6) };
-}
-
-function parseCoordinatesFromMapLink(rawLink) {
-  const normalized = normalizeMapLink(rawLink);
-  if (!normalized) return null;
-
-  try {
-    const url = new URL(normalized);
-    const directCandidates = [url.searchParams.get('q'), url.searchParams.get('query'), url.searchParams.get('ll')];
-    for (const candidate of directCandidates) {
-      const coords = parseLatLngFromText(candidate);
-      if (coords) return coords;
-    }
-
-    const composed = `${url.pathname} ${url.search} ${url.hash}`;
-    const atMatch = composed.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-    if (atMatch) {
-      return parseLatLngFromText(`${atMatch[1]},${atMatch[2]}`);
-    }
-
-    const d3d4d = composed.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
-    if (d3d4d) {
-      return parseLatLngFromText(`${d3d4d[1]},${d3d4d[2]}`);
-    }
-  } catch {
-    // Ignore malformed URL and fallback below.
-  }
-
-  return parseLatLngFromText(normalized);
-}
-
-function syncGulandCoordsFromMapLink(rawLink) {
-  const coords = parseCoordinatesFromMapLink(rawLink);
-  if (coords) {
-    state.lat = coords.lat;
-    state.lng = coords.lng;
-    if (els.btnOpenGuland) {
-      els.btnOpenGuland.disabled = false;
-      els.btnOpenGuland.style.opacity = '1';
-    }
-    return;
-  }
-
-  state.lat = null;
-  state.lng = null;
-  if (els.btnOpenGuland) {
-    els.btnOpenGuland.disabled = true;
-    els.btnOpenGuland.style.opacity = '0.6';
-  }
-}
-
 function openGulandTab() {
   if (!state.lat || !state.lng) {
-    window.alert('Vui lòng lấy vị trí tài sản hoặc dán link Google Maps có tọa độ!');
+    window.alert('Vui lòng lấy vị trí tài sản trước!');
     return;
   }
   const gulandUrl = `https://guland.vn/soi-quy-hoach?lat=${state.lat}&lng=${state.lng}&zoom=16`;
@@ -1172,11 +1112,6 @@ function wireEvents() {
   if (els.btnOpenGuland) {
     els.btnOpenGuland.addEventListener('click', openGulandTab);
   }
-  if (els.mapsLink) {
-    els.mapsLink.addEventListener('input', () => {
-      syncGulandCoordsFromMapLink(els.mapsLink.value);
-    });
-  }
 
   if (els.pickLibraryBtn) {
     els.pickLibraryBtn.addEventListener('click', () => {
@@ -1248,7 +1183,6 @@ function wireEvents() {
 
 initFormDefaults();
 restoreDraftData();
-syncGulandCoordsFromMapLink(els.mapsLink?.value || '');
 wireEvents();
 if (isMessengerInAppBrowser() && els.messengerBanner) {
   els.messengerBanner.classList.remove('hidden');
