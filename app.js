@@ -171,6 +171,8 @@ function setStatus(visible, title = '', desc = '') {
 }
 
 function setWarning(message) {
+  if (!els.limitWarning) return;
+
   if (!message) {
     els.limitWarning.textContent = '';
     els.limitWarning.classList.add('hidden');
@@ -523,8 +525,13 @@ function updateSummary() {
 
   els.originalCount.textContent = String(state.originalFiles.length);
   els.originalSize.textContent = formatBytes(originalBytes);
-  els.compressedSize.textContent = formatBytes(compressedBytes);
-  els.partCount.textContent = String(state.parts.length);
+  if (els.compressedSize) els.compressedSize.textContent = formatBytes(compressedBytes);
+  if (els.partCount) els.partCount.textContent = String(state.parts.length);
+
+  if (!els.limitStatus) {
+    setWarning('');
+    return;
+  }
 
   if (!state.compressedFiles.length) {
     els.limitStatus.textContent = 'Chưa có ảnh';
