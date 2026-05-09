@@ -25,6 +25,7 @@ const els = {
   mapStatus: document.getElementById('mapStatus'),
   getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
   btnOpenGuland: document.getElementById('btnOpenGuland'),
+  btnOpenNhaSieuTot: document.getElementById('btnOpenNhaSieuTot'),
   assessmentDate: document.getElementById('assessmentDate'),
   notes: document.getElementById('notes'),
   landNotes: document.getElementById('landNotes'),
@@ -921,6 +922,15 @@ function openGulandTab() {
   window.open(gulandUrl, '_blank');
 }
 
+function openNhaSieuTotTab() {
+  if (!state.lat || !state.lng) {
+    window.alert('Vui lòng lấy vị trí tài sản trước!');
+    return;
+  }
+  const nhaSieuTotUrl = `https://nhasieutot.com/?lat=${state.lat}&lng=${state.lng}&zoom=15`;
+  window.open(nhaSieuTotUrl, '_blank');
+}
+
 function buildQrUrlMain(text) {
   if (!text) return '';
   return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
@@ -982,6 +992,10 @@ async function fillAssetLocation() {
     if (els.btnOpenGuland) {
       els.btnOpenGuland.disabled = false;
       els.btnOpenGuland.style.opacity = '1';
+    }
+    if (els.btnOpenNhaSieuTot) {
+      els.btnOpenNhaSieuTot.disabled = false;
+      els.btnOpenNhaSieuTot.style.opacity = '1';
     }
     const url = buildGoogleMapsLink(lat, lng);
     const hadValue = Boolean(els.mapsLink.value.trim());
@@ -1118,6 +1132,9 @@ function wireEvents() {
   }
   if (els.btnOpenGuland) {
     els.btnOpenGuland.addEventListener('click', openGulandTab);
+  }
+  if (els.btnOpenNhaSieuTot) {
+    els.btnOpenNhaSieuTot.addEventListener('click', openNhaSieuTotTab);
   }
 
   if (els.pickLibraryBtn) {
