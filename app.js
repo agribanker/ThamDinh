@@ -913,6 +913,78 @@ function normalizeMapLink(raw) {
   return value;
 }
 
+function isShortMapUrl(raw) {
+  const value = String(raw || '').trim();
+  return /^(https?:\/\/)?(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(value);
+}
+
+function isValidLatLng(lat, lng) {
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  return Number.isFinite(latNum) && Number.isFinite(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180;
+}
+
+function tryParseLatLngFromLink(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return null;
+
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  })();
+
+  const patterns = [
+    /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /[?&]query=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = decoded.match(pattern);
+    if (!match) continue;
+    const lat = Number(match[1]).toFixed(6);
+    const lng = Number(match[2]).toFixed(6);
+    if (isValidLatLng(lat, lng)) return { lat, lng };
+  }
+
+  return null;
+}
+
+function setReferenceButtonsEnabled(enabled) {
+  if (els.btnOpenGuland) {
+    els.btnOpenGuland.disabled = !enabled;
+    els.btnOpenGuland.style.opacity = enabled ? '1' : '0.6';
+  }
+  if (els.btnOpenNhaSieuTot) {
+    els.btnOpenNhaSieuTot.disabled = !enabled;
+    els.btnOpenNhaSieuTot.style.opacity = enabled ? '1' : '0.6';
+  }
+}
+
+function handleMapsLinkChange() {
+  const value = els.mapsLink?.value || '';
+  const parsed = tryParseLatLngFromLink(value);
+
+  if (parsed) {
+    state.lat = parsed.lat;
+    state.lng = parsed.lng;
+    setReferenceButtonsEnabled(true);
+    setMapStatus('Đã nhận diện tọa độ từ link Google Maps', 'success');
+    return;
+  }
+
+  if (isShortMapUrl(value)) {
+    state.lat = null;
+    state.lng = null;
+    setReferenceButtonsEnabled(false);
+    setMapStatus('Link rút gọn không đọc được tọa độ. Hãy bấm Lấy vị trí tài sản hoặc dán link đầy đủ dạng google.com/maps?q=lat,lng.', 'error');
+  }
+}
+
 function openGulandTab() {
   if (!state.lat || !state.lng) {
     window.alert('Vui lòng lấy vị trí tài sản trước!');
@@ -1127,6 +1199,10 @@ function wireEvents() {
   }
   if (els.btnOpenNhaSieuTot) {
     els.btnOpenNhaSieuTot.addEventListener('click', openNhaSieuTotTab);
+  }
+  if (els.mapsLink) {
+    els.mapsLink.addEventListener('input', handleMapsLinkChange);
+    els.mapsLink.addEventListener('change', handleMapsLinkChange);
   }
 
   if (els.pickLibraryBtn) {
