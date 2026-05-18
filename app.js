@@ -394,7 +394,7 @@ async function compressImage(file) {
     let quality = cfg.quality;
     let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
 
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 4; i += 1) {
       if (bestBlob.size <= cfg.targetBytes) break;
       if (i % 2 === 0) {
         maxEdge = Math.max(cfg.minEdge, Math.round(maxEdge * 0.9));
@@ -1120,12 +1120,23 @@ async function processSelectedFiles(fileList, append = false) {
     }
 
     const compressed = [];
-    for (let i = 0; i < incoming.length; i += 1) {
-      const file = incoming[i];
-      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
-      const blob = await compressImage(file);
-      const offset = append ? state.compressedFiles.length : 0;
-      compressed.push(blobToFile(blob, offset + i));
+    const offset = append ? state.compressedFiles.length : 0;
+    const concurrency = incoming.length <= 4 ? incoming.length : 3;
+
+    for (let start = 0; start < incoming.length; start += concurrency) {
+      const batch = incoming.slice(start, start + concurrency);
+      const end = Math.min(start + batch.length, incoming.length);
+      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${start + 1}-${end}/${incoming.length}`);
+
+      const batchOutput = await Promise.all(
+        batch.map(async (file, batchIndex) => {
+          const index = start + batchIndex;
+          const blob = await compressImage(file);
+          return blobToFile(blob, offset + index);
+        })
+      );
+
+      compressed.push(...batchOutput);
     }
 
     if (append) {
@@ -1138,7 +1149,7 @@ async function processSelectedFiles(fileList, append = false) {
     state.deviceShareLimited = false;
 
     rebuildPreparedParts();
-    await refreshImageHints();
+    refreshImageHints();
 
     const totalBytes = getTotalCompressedBytes();
     if (totalBytes > SAFE_LIMIT_BYTES) {
