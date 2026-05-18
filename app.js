@@ -936,6 +936,13 @@ function tryParseLatLngFromLink(raw) {
     }
   })();
 
+  const commaDecimalMatch = decoded.match(/^(-?\d+),(\d+),\s+(-?\d+),(\d+)$/);
+  if (commaDecimalMatch) {
+    const lat = Number(`${commaDecimalMatch[1]}.${commaDecimalMatch[2]}`).toFixed(6);
+    const lng = Number(`${commaDecimalMatch[3]}.${commaDecimalMatch[4]}`).toFixed(6);
+    if (isValidLatLng(lat, lng)) return { lat, lng };
+  }
+
   const patterns = [
     /^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/,
     /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
