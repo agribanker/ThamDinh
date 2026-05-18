@@ -937,6 +937,7 @@ function tryParseLatLngFromLink(raw) {
   })();
 
   const patterns = [
+    /^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/,
     /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
     /[?&]query=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
     /[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
@@ -965,7 +966,7 @@ function setReferenceButtonsEnabled(enabled) {
   }
 }
 
-function handleMapsLinkChange() {
+function handleMapsLinkChange(opts = {}) {
   const value = els.mapsLink?.value || '';
   const parsed = tryParseLatLngFromLink(value);
 
@@ -974,6 +975,14 @@ function handleMapsLinkChange() {
     state.lng = parsed.lng;
     setReferenceButtonsEnabled(true);
     setMapStatus('Đã nhận diện tọa độ từ link Google Maps', 'success');
+
+    if (opts.normalize) {
+      const trimmed = value.trim();
+      if (/^-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?$/.test(trimmed)) {
+        els.mapsLink.value = `https://www.google.com/maps?q=${parsed.lat},${parsed.lng}`;
+        saveDraftData();
+      }
+    }
     return;
   }
 
@@ -1201,8 +1210,8 @@ function wireEvents() {
     els.btnOpenNhaSieuTot.addEventListener('click', openNhaSieuTotTab);
   }
   if (els.mapsLink) {
-    els.mapsLink.addEventListener('input', handleMapsLinkChange);
-    els.mapsLink.addEventListener('change', handleMapsLinkChange);
+    els.mapsLink.addEventListener('input', () => handleMapsLinkChange());
+    els.mapsLink.addEventListener('change', () => handleMapsLinkChange({ normalize: true }));
   }
 
   if (els.pickLibraryBtn) {
