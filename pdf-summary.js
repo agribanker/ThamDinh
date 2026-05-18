@@ -29,16 +29,6 @@
     return value;
   }
 
-  function buildQrUrlMain(text) {
-    if (!text) return '';
-    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
-  }
-
-  function buildQrUrlFallback(text) {
-    if (!text) return '';
-    return `https://quickchart.io/qr?size=320&text=${encodeURIComponent(text)}`;
-  }
-
   function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -110,31 +100,13 @@
   }
   async function fetchQrDataUrl(text) {
     if (!text) return '';
-    const candidates = [buildQrUrlMain(text), buildQrUrlFallback(text)];
+    if (!global.QrLocal?.buildQrDataUrl) return '';
 
-    async function fetchWithTimeout(url, timeoutMs = 4500) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        return await fetch(url, { method: 'GET', cache: 'no-store', signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
-      }
+    try {
+      return await global.QrLocal.buildQrDataUrl(text, { size: 320 });
+    } catch {
+      return '';
     }
-
-    for (const url of candidates) {
-      try {
-        const res = await fetchWithTimeout(url);
-        if (!res.ok) continue;
-        const blob = await res.blob();
-        if (!blob || blob.size === 0) continue;
-        const dataUrl = await blobToDataUrl(blob);
-        if (dataUrl) return dataUrl;
-      } catch {
-        // try next
-      }
-    }
-    return '';
   }
 
   async function buildPhotoThumbs(files) {

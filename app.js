@@ -931,34 +931,16 @@ function openNhaSieuTotTab() {
   window.open(nhaSieuTotUrl, '_blank');
 }
 
-function buildQrUrlMain(text) {
-  if (!text) return '';
-  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&margin=8&data=${encodeURIComponent(text)}`;
-}
-
-function buildQrUrlFallback(text) {
-  if (!text) return '';
-  return `https://quickchart.io/qr?size=320&text=${encodeURIComponent(text)}`;
-}
-
 async function fetchQrBlobForMapLink(mapLink) {
   const normalized = normalizeMapLink(mapLink);
   if (!normalized) return null;
-  const candidates = [buildQrUrlMain(normalized), buildQrUrlFallback(normalized)];
+  if (!window.QrLocal?.buildQrBlob) return null;
 
-  for (const url of candidates) {
-    try {
-      const res = await fetch(url, { method: 'GET', cache: 'no-store' });
-      if (!res.ok) continue;
-      const blob = await res.blob();
-      if (!blob || blob.size === 0) continue;
-      return blob;
-    } catch {
-      // Try next QR provider.
-    }
+  try {
+    return await window.QrLocal.buildQrBlob(normalized, { size: 320 });
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
 async function createQrAttachmentIfNeeded(part) {
