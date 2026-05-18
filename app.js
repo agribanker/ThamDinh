@@ -1076,6 +1076,16 @@ function resetFormDefaults() {
   els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   els.notes.value = '';
   if (els.landNotes) els.landNotes.value = '';
+  state.lat = null;
+  state.lng = null;
+  if (els.btnOpenGuland) {
+    els.btnOpenGuland.disabled = true;
+    els.btnOpenGuland.style.opacity = '0.6';
+  }
+  if (els.btnOpenNhaSieuTot) {
+    els.btnOpenNhaSieuTot.disabled = true;
+    els.btnOpenNhaSieuTot.style.opacity = '0.6';
+  }
   setMapStatus('');
 }
 
@@ -1149,6 +1159,7 @@ function wireEvents() {
   }
 
   [
+    els.caseCode,
     els.customerName,
     els.customerAddress,
     els.assetAddress,
