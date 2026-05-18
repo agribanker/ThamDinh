@@ -994,22 +994,13 @@ function openGulandTab() {
   window.open(gulandUrl, '_blank');
 }
 
-async function openNhaSieuTotTab() {
+function openNhaSieuTotTab() {
   if (!state.lat || !state.lng) {
     window.alert('Vui lòng lấy vị trí tài sản trước!');
     return;
   }
-
-  const coords = `${state.lat}, ${state.lng}`;
-  try {
-    await copyText(coords);
-  } catch {
-    // Không sao chép được thì vẫn mở NhaSieuTot.
-  }
-
-  const nhaSieuTotUrl = `https://nhasieutot.com/?lat=${state.lat}&lng=${state.lng}&zoom=22`;
+  const nhaSieuTotUrl = `https://nhasieutot.com/?lat=${state.lat}&lng=${state.lng}&zoom=15`;
   window.open(nhaSieuTotUrl, '_blank');
-  setStatus(true, 'Đã mở NhaSieuTot', 'Đã sao chép tọa độ. Nếu cần hiện đúng ghim vị trí, dán tọa độ vào ô tìm kiếm rồi chọn kết quả OSM.');
 }
 
 async function fetchQrBlobForMapLink(mapLink) {
