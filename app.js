@@ -981,11 +981,13 @@ function handleMapsLinkChange(opts = {}) {
     state.lat = parsed.lat;
     state.lng = parsed.lng;
     setReferenceButtonsEnabled(true);
-    setMapStatus('Đã nhận diện tọa độ từ link Google Maps', 'success');
+    setMapStatus('Đã nhận diện tọa độ vị trí', 'success');
 
     if (opts.normalize) {
       const trimmed = value.trim();
-      if (/^-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?$/.test(trimmed)) {
+      const isRawDotCoords = /^-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?$/.test(trimmed);
+      const isRawCommaDecimalCoords = /^-?\d+,\d+,\s+-?\d+,\d+$/.test(trimmed);
+      if (isRawDotCoords || isRawCommaDecimalCoords) {
         els.mapsLink.value = `https://www.google.com/maps?q=${parsed.lat},${parsed.lng}`;
         saveDraftData();
       }
