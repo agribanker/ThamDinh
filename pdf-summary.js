@@ -177,7 +177,7 @@
     h1 { margin: 0; color: #a71d3f; font-size: 28px; }
     .sub { margin-top: 4px; color: #5f5f5f; font-size: 14px; }
     .block { margin-top: 14px; border: 1px solid #e3e3e3; border-radius: 12px; padding: 12px; }
-    .info-wrap { display: flex; align-items: flex-start; gap: 24px; }
+    .info-wrap { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .field-list { margin: 0; padding: 0; list-style: none; font-size: 14px; flex: 1; min-width: 0; }
     .field-list li { margin: 0 0 6px; }
     .label { font-weight: 700; }

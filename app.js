@@ -65,8 +65,7 @@ const state = {
   deviceShareLimited: false,
   isLocatingAsset: false,
   lat: null,
-  lng: null,
-  gpsLocated: false
+  lng: null
 };
 
 function collectDraftData() {
@@ -395,7 +394,7 @@ async function compressImage(file) {
     let quality = cfg.quality;
     let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
 
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       if (bestBlob.size <= cfg.targetBytes) break;
       if (i % 2 === 0) {
         maxEdge = Math.max(cfg.minEdge, Math.round(maxEdge * 0.9));
@@ -968,17 +967,15 @@ function setReferenceButtonsEnabled(enabled) {
     els.btnOpenGuland.disabled = !enabled;
     els.btnOpenGuland.style.opacity = enabled ? '1' : '0.6';
   }
-  const nhaEnabled = enabled && state.gpsLocated;
   if (els.btnOpenNhaSieuTot) {
-    els.btnOpenNhaSieuTot.disabled = !nhaEnabled;
-    els.btnOpenNhaSieuTot.style.opacity = nhaEnabled ? '1' : '0.6';
+    els.btnOpenNhaSieuTot.disabled = !enabled;
+    els.btnOpenNhaSieuTot.style.opacity = enabled ? '1' : '0.6';
   }
 }
 
 function handleMapsLinkChange(opts = {}) {
   const value = els.mapsLink?.value || '';
   const parsed = tryParseLatLngFromLink(value);
-  state.gpsLocated = false;
 
   if (parsed) {
     state.lat = parsed.lat;
@@ -998,21 +995,12 @@ function handleMapsLinkChange(opts = {}) {
     return;
   }
 
-  state.lat = null;
-  state.lng = null;
-  setReferenceButtonsEnabled(false);
-
   if (isShortMapUrl(value)) {
+    state.lat = null;
+    state.lng = null;
+    setReferenceButtonsEnabled(false);
     setMapStatus('Link rút gọn không đọc được tọa độ. Hãy bấm Lấy vị trí tài sản hoặc dán link đầy đủ dạng google.com/maps?q=lat,lng.', 'error');
-    return;
   }
-
-  if (!value.trim()) {
-    setMapStatus('');
-    return;
-  }
-
-  setMapStatus('Chưa nhận diện được tọa độ vị trí từ nội dung vừa nhập.', 'error');
 }
 
 function openGulandTab() {
@@ -1073,7 +1061,6 @@ async function fillAssetLocation() {
     const lng = Number(pos.coords.longitude).toFixed(6);
     state.lat = lat;
     state.lng = lng;
-    state.gpsLocated = true;
     if (els.btnOpenGuland) {
       els.btnOpenGuland.disabled = false;
       els.btnOpenGuland.style.opacity = '1';
@@ -1133,23 +1120,12 @@ async function processSelectedFiles(fileList, append = false) {
     }
 
     const compressed = [];
-    const offset = append ? state.compressedFiles.length : 0;
-    const concurrency = incoming.length <= 4 ? incoming.length : 3;
-
-    for (let start = 0; start < incoming.length; start += concurrency) {
-      const batch = incoming.slice(start, start + concurrency);
-      const end = Math.min(start + batch.length, incoming.length);
-      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${start + 1}-${end}/${incoming.length}`);
-
-      const batchOutput = await Promise.all(
-        batch.map(async (file, batchIndex) => {
-          const index = start + batchIndex;
-          const blob = await compressImage(file);
-          return blobToFile(blob, offset + index);
-        })
-      );
-
-      compressed.push(...batchOutput);
+    for (let i = 0; i < incoming.length; i += 1) {
+      const file = incoming[i];
+      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${i + 1}/${incoming.length}: ${shortenFileName(file.name)}`);
+      const blob = await compressImage(file);
+      const offset = append ? state.compressedFiles.length : 0;
+      compressed.push(blobToFile(blob, offset + i));
     }
 
     if (append) {
@@ -1162,7 +1138,7 @@ async function processSelectedFiles(fileList, append = false) {
     state.deviceShareLimited = false;
 
     rebuildPreparedParts();
-    refreshImageHints();
+    await refreshImageHints();
 
     const totalBytes = getTotalCompressedBytes();
     if (totalBytes > SAFE_LIMIT_BYTES) {
@@ -1192,7 +1168,6 @@ function resetFormDefaults() {
   if (els.landNotes) els.landNotes.value = '';
   state.lat = null;
   state.lng = null;
-  state.gpsLocated = false;
   if (els.btnOpenGuland) {
     els.btnOpenGuland.disabled = true;
     els.btnOpenGuland.style.opacity = '0.6';
