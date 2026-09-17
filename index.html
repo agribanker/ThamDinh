@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#a71d3f" />
+    <title>Thẩm định tài sản - Agribank</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <div class="warning hidden" id="messengerBanner">
+        Bạn đang mở trong Messenger hoặc Zalo. Một số tính năng vị trí hoặc mở mail có thể không ổn. Nên mở bằng Chrome để dùng đầy đủ.
+      </div>
+      <header class="brand-hero card">
+        <div class="brand-top">
+          <div class="brand-lockup">
+            <div class="brand-logo-slot">
+              <img
+                class="brand-logo-image"
+                src="./logo_agribank_1.png"
+                alt="Agribank logo"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';"
+              />
+              <div class="brand-logo-fallback" aria-hidden="true">
+                <span>A</span>
+              </div>
+            </div>
+            <div class="brand-copy">
+              <div class="brand-name">AGRIBANK</div>
+              <div class="brand-sub">CHI NHÁNH BẮC LONG AN</div>
+            </div>
+          </div>
+          <div class="brand-chip">Nội bộ</div>
+        </div>
+
+        <div class="hero-copy compact-hero">
+          <h1>THẨM ĐỊNH TÀI SẢN</h1>
+        </div>
+      </header>
+
+      <section class="card form-card">
+        <div class="section-head">
+          <div>
+            <h2>1. Thông tin hồ sơ</h2>
+          </div>
+        </div>
+
+        <form id="caseForm" class="form-grid" autocomplete="off">
+          <label>
+            <span>Mã khách hàng</span>
+            <input id="caseCode" name="caseCode" type="text" placeholder="6612" />
+          </label>
+          <label>
+            <span>Tên khách hàng</span>
+            <input id="customerName" name="customerName" type="text" placeholder="Nguyễn Văn A" />
+          </label>
+          <label>
+            <span>Địa chỉ khách hàng</span>
+            <input id="customerAddress" name="customerAddress" type="text" placeholder="ấp Bàu Trai, xã Hậu Nghĩa, tỉnh Tây Ninh" />
+          </label>
+          <label class="full">
+            <span>Địa chỉ tài sản</span>
+            <input id="assetAddress" name="assetAddress" type="text" placeholder="ấp Bàu Trai, xã Hậu Nghĩa, tỉnh Tây Ninh" />
+          </label>
+          <label class="full">
+            <span>Tạo mã QR Code vị trí</span>
+            <input id="mapsLink" name="mapsLink" type="text" placeholder="https://maps.google.com/..." />
+            <div class="map-actions">
+              <button type="button" class="map-btn" id="getAssetLocationBtn">Lấy vị trí tài sản</button>
+              <button type="button" class="tertiary-btn" id="btnOpenGuland" disabled style="opacity: 0.6;">Tham khảo giá Guland</button>
+              <button type="button" class="tertiary-btn" id="btnOpenNhaSieuTot" disabled style="opacity: 0.6;">Tham khảo giá NhaSieuTot</button>
+            </div>
+            <div class="map-helper">Có thể sao chép địa chỉ từ trang https://maps.google.com/ vào đây để tạo mã QR</div>
+            <div class="map-status" id="mapStatus"></div>
+          </label>
+          <label>
+            <span>Ngày thẩm định</span>
+            <input id="assessmentDate" name="assessmentDate" type="date" />
+          </label>
+          <label>
+            <span>Thông tin GCN QSDĐ</span>
+            <input id="notes" name="notes" type="text" placeholder="QSDĐ Số AI 123456, Tờ bản đồ số 6, thửa số 1..." />
+          </label>
+          <label>
+            <span>Ghi chú</span>
+            <input id="landNotes" name="landNotes" type="text" placeholder="Hiện trạng đất, tình trạng thực tế..." />
+          </label>
+          <label>
+            <span>Tên CBTD</span>
+            <input id="officerName" name="officerName" type="text" placeholder="Nguyễn Văn B" />
+          </label>
+        </form>
+      </section>
+
+      <section class="card upload-card">
+        <div class="section-head">
+          <div>
+            <h2>2. Chọn ảnh</h2>
+          </div>
+        </div>
+
+        <input id="photoInput" type="file" accept="image/*" multiple class="hidden-file" />
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden-file" />
+
+        <div class="upload-zone">
+          <div class="upload-copy">
+            <strong>Chọn nhiều ảnh từ điện thoại</strong>
+            <span>Chọn từ thư viện hoặc chụp trực tiếp</span>
+          </div>
+          <div class="picker-actions">
+            <button type="button" class="secondary-btn" id="pickLibraryBtn">Chọn từ thư viện</button>
+            <button type="button" class="tertiary-btn" id="pickCameraBtn">Chụp ảnh</button>
+          </div>
+        </div>
+
+        <div class="stats-row" id="originalStats">
+          <div class="stat-pill">
+            <span>Số ảnh</span>
+            <strong id="originalCount">0</strong>
+          </div>
+          <div class="stat-pill">
+            <span>Tổng dung lượng</span>
+            <strong id="originalSize">0 MB</strong>
+          </div>
+        </div>
+
+        <div class="status-card hidden" id="statusCard">
+          <div class="status-title" id="statusTitle">Đang xử lý ảnh...</div>
+          <div class="status-desc" id="statusDesc">Chờ hệ thống nén và chia phần.</div>
+        </div>
+        <div class="warning hidden" id="imageHints"></div>
+
+        <div class="preview-grid" id="previewGrid"></div>
+        <button type="button" class="secondary-btn add-photo-btn" id="addPhotosBtn">Thêm ảnh</button>
+      </section>
+
+      <section class="card parts-card">
+        <div class="section-head">
+          <div>
+            <h2>3. Gửi mail</h2>
+          </div>
+        </div>
+
+        <div class="parts-list" id="partsList"></div>
+        <div class="case-actions">
+          <button type="button" class="secondary-btn" id="exportPdfBtn">Xuất PDF</button>
+          <button type="button" class="secondary-btn" id="newCaseBtn">Tạo hồ sơ mới</button>
+        </div>
+      </section>
+    </main>
+
+    <template id="partTemplate">
+      <article class="part-card">
+        <div class="part-head">
+          <div>
+            <h3 class="part-title"></h3>
+            <p class="part-meta"></p>
+          </div>
+          <span class="part-badge"></span>
+        </div>
+
+        <div class="part-actions">
+          <button type="button" class="primary-btn share-btn">Gửi Mail</button>
+          <button type="button" class="secondary-btn copy-btn">Sao chép nội dung mail</button>
+        </div>
+
+        <details class="part-details">
+          <summary>Xem nội dung mail</summary>
+          <pre class="part-preview"></pre>
+        </details>
+      </article>
+    </template>
+
+    <script src="./vendor-qrcode.js"></script>
+    <script src="./qr-local.js"></script>
+    <script src="./pdf-summary.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
