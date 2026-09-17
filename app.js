@@ -1,0 +1,1328 @@
+const SAFE_LIMIT_BYTES = 17 * 1024 * 1024;
+const NEAR_LIMIT_BYTES = 16.5 * 1024 * 1024;
+const STABLE_MAX_FILES_PER_PART = 6;
+const STABLE_MAX_BYTES_PER_PART = 10 * 1024 * 1024;
+const DEVICE_SAFE_FILES_PER_SHARE = 8;
+const DRAFT_STORAGE_KEY = 'agribank_tham_dinh_text_draft_v1';
+const DRAFT_FIELD_KEYS = [
+  'caseCode',
+  'customerName',
+  'customerAddress',
+  'assetAddress',
+  'mapsLink',
+  'assessmentDate',
+  'notes',
+  'landNotes',
+  'officerName'
+];
+
+const els = {
+  caseCode: document.getElementById('caseCode'),
+  customerName: document.getElementById('customerName'),
+  customerAddress: document.getElementById('customerAddress'),
+  assetAddress: document.getElementById('assetAddress'),
+  mapsLink: document.getElementById('mapsLink'),
+  mapStatus: document.getElementById('mapStatus'),
+  getAssetLocationBtn: document.getElementById('getAssetLocationBtn'),
+  btnOpenGuland: document.getElementById('btnOpenGuland'),
+  btnOpenNhaSieuTot: document.getElementById('btnOpenNhaSieuTot'),
+  assessmentDate: document.getElementById('assessmentDate'),
+  notes: document.getElementById('notes'),
+  landNotes: document.getElementById('landNotes'),
+  officerName: document.getElementById('officerName'),
+  photoInput: document.getElementById('photoInput'),
+  cameraInput: document.getElementById('cameraInput'),
+  pickLibraryBtn: document.getElementById('pickLibraryBtn'),
+  pickCameraBtn: document.getElementById('pickCameraBtn'),
+  addPhotosBtn: document.getElementById('addPhotosBtn'),
+  imageHints: document.getElementById('imageHints'),
+  originalCount: document.getElementById('originalCount'),
+  originalSize: document.getElementById('originalSize'),
+  compressedSize: document.getElementById('compressedSize'),
+  limitStatus: document.getElementById('limitStatus'),
+  partCount: document.getElementById('partCount'),
+  limitWarning: document.getElementById('limitWarning'),
+  partsList: document.getElementById('partsList'),
+  previewGrid: document.getElementById('previewGrid'),
+  statusCard: document.getElementById('statusCard'),
+  statusTitle: document.getElementById('statusTitle'),
+  statusDesc: document.getElementById('statusDesc'),
+  newCaseBtn: document.getElementById('newCaseBtn'),
+  exportPdfBtn: document.getElementById('exportPdfBtn'),
+
+  messengerBanner: document.getElementById('messengerBanner')
+};
+
+const template = document.getElementById('partTemplate');
+
+const state = {
+  originalFiles: [],
+  compressedFiles: [],
+  parts: [],
+  previewUrls: [],
+  addModeNextPick: false,
+  autoMode: 'compact',
+  deviceShareLimited: false,
+  isLocatingAsset: false,
+  lat: null,
+  lng: null,
+  gpsLocated: false
+};
+
+function collectDraftData() {
+  const output = {};
+  DRAFT_FIELD_KEYS.forEach((key) => {
+    const input = els[key];
+    if (!input) return;
+    output[key] = input.value || '';
+  });
+  return output;
+}
+
+function saveDraftData() {
+  try {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(collectDraftData()));
+  } catch {
+    // Ignore storage errors (private mode, quota, blocked storage).
+  }
+}
+
+function restoreDraftData() {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return;
+
+    DRAFT_FIELD_KEYS.forEach((key) => {
+      const input = els[key];
+      if (!input) return;
+      if (typeof data[key] !== 'string') return;
+      input.value = data[key];
+    });
+  } catch {
+    // Ignore malformed draft payloads.
+  }
+}
+
+function clearDraftData() {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function formatDateForDisplay(dateStr) {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function pad(value) {
+  return String(value).padStart(2, '0');
+}
+
+function toAsciiNoMark(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+function toCompactCustomerName(text) {
+  const raw = toAsciiNoMark(text).replace(/[^a-zA-Z0-9]+/g, '');
+  return raw || 'KhachHang';
+}
+
+function getDateStamp() {
+  const source = els.assessmentDate?.value ? new Date(`${els.assessmentDate.value}T00:00:00`) : new Date();
+  if (Number.isNaN(source.getTime())) {
+    const now = new Date();
+    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  }
+  return `${source.getFullYear()}${pad(source.getMonth() + 1)}${pad(source.getDate())}`;
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '0 MB';
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
+}
+
+function escapeHtml(text) {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function shortenFileName(name) {
+  if (name.length <= 24) return name;
+  const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
+  return `${name.slice(0, 18)}...${ext}`;
+}
+
+function setStatus(visible, title = '', desc = '') {
+  els.statusCard.classList.toggle('hidden', !visible);
+  els.statusTitle.textContent = title;
+  els.statusDesc.textContent = desc;
+}
+
+function setWarning(message) {
+  if (!els.limitWarning) return;
+
+  if (!message) {
+    els.limitWarning.textContent = '';
+    els.limitWarning.classList.add('hidden');
+    return;
+  }
+  els.limitWarning.textContent = message;
+  els.limitWarning.classList.remove('hidden');
+}
+
+function setImageHints(messages = []) {
+  if (!els.imageHints) return;
+  if (!messages.length) {
+    els.imageHints.textContent = '';
+    els.imageHints.classList.add('hidden');
+    return;
+  }
+
+  els.imageHints.innerHTML = messages.map((msg) => `• ${escapeHtml(msg)}`).join('<br>');
+  els.imageHints.classList.remove('hidden');
+}
+
+function simpleHash(bytes) {
+  let h = 2166136261;
+  for (let i = 0; i < bytes.length; i += 1) {
+    h ^= bytes[i];
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+async function buildQuickSignature(file) {
+  const chunk = 16 * 1024;
+  const first = new Uint8Array(await file.slice(0, chunk).arrayBuffer());
+  const startTail = Math.max(0, file.size - chunk);
+  const last = new Uint8Array(await file.slice(startTail, file.size).arrayBuffer());
+  return `${file.size}:${simpleHash(first)}:${simpleHash(last)}`;
+}
+
+async function getImageDimensions(file) {
+  const image = await readFileAsImage(file);
+  const width = image.naturalWidth || image.width || 0;
+  const height = image.naturalHeight || image.height || 0;
+  if (typeof image.close === 'function') image.close();
+  return { width, height };
+}
+
+async function analyzeImageHints(files) {
+  if (!files.length) return [];
+
+  const hints = [];
+  const nameAndSizeMap = new Map();
+  const signatureMap = new Map();
+  const tinyFiles = [];
+  const suspiciousSmallLargeDims = [];
+
+  for (const file of files) {
+    const nameAndSizeKey = `${file.name.toLowerCase()}|${file.size}`;
+    nameAndSizeMap.set(nameAndSizeKey, (nameAndSizeMap.get(nameAndSizeKey) || 0) + 1);
+    if (file.size < 100 * 1024) tinyFiles.push(file);
+  }
+
+  for (const file of files) {
+    const signature = await buildQuickSignature(file);
+    const list = signatureMap.get(signature) || [];
+    list.push(file.name);
+    signatureMap.set(signature, list);
+  }
+
+  const dimsLimit = Math.min(files.length, 16);
+  for (let i = 0; i < dimsLimit; i += 1) {
+    const file = files[i];
+    try {
+      const dims = await getImageDimensions(file);
+      if (Math.max(dims.width, dims.height) >= 1400 && file.size < 130 * 1024) {
+        suspiciousSmallLargeDims.push(file.name);
+      }
+    } catch {
+      // Ignore dimension read errors for hint analysis.
+    }
+  }
+
+  let duplicatedByNameSize = 0;
+  nameAndSizeMap.forEach((count) => {
+    if (count > 1) duplicatedByNameSize += count - 1;
+  });
+  if (duplicatedByNameSize > 0) {
+    hints.push(`Có ${duplicatedByNameSize} ảnh trùng tên + dung lượng, nên kiểm tra và xóa bớt.`);
+  }
+
+  let duplicatedBySignature = 0;
+  signatureMap.forEach((arr) => {
+    if (arr.length > 1) duplicatedBySignature += arr.length - 1;
+  });
+  if (duplicatedBySignature > 0) {
+    hints.push(`Có ${duplicatedBySignature} ảnh có nội dung rất giống nhau (hash gần trùng).`);
+  }
+
+  if (tinyFiles.length > 0) {
+    hints.push(`Có ${tinyFiles.length} ảnh dung lượng rất nhỏ (<100KB), nên kiểm tra ảnh mờ/thiếu chi tiết.`);
+  }
+
+  if (suspiciousSmallLargeDims.length > 0) {
+    hints.push(`Có ${suspiciousSmallLargeDims.length} ảnh độ phân giải lớn nhưng dung lượng quá thấp, nên xem lại chất lượng.`);
+  }
+
+  return hints;
+}
+
+async function refreshImageHints() {
+  if (!state.compressedFiles.length) {
+    setImageHints([]);
+    return;
+  }
+  try {
+    const hints = await analyzeImageHints(state.compressedFiles);
+    setImageHints(hints);
+  } catch {
+    setImageHints([]);
+  }
+}
+
+function setMapStatus(message, type = 'success') {
+  if (!els.mapStatus) return;
+  if (!message) {
+    els.mapStatus.textContent = '';
+    els.mapStatus.className = 'map-status';
+    return;
+  }
+  els.mapStatus.textContent = message;
+  els.mapStatus.className = `map-status ${type}`;
+}
+
+function collectFormData() {
+  return {
+    caseCode: els.caseCode.value.trim(),
+    customerName: els.customerName.value.trim(),
+    customerAddress: els.customerAddress.value.trim(),
+    assetAddress: els.assetAddress.value.trim(),
+    mapsLink: els.mapsLink.value.trim(),
+    assessmentDate: els.assessmentDate.value,
+    notes: els.notes.value.trim(),
+    landNotes: els.landNotes?.value.trim() || '',
+    officerName: els.officerName.value.trim()
+  };
+}
+
+function readFileAsImage(file) {
+  if ('createImageBitmap' in window) {
+    return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => fallbackReadFileAsImage(file));
+  }
+  return fallbackReadFileAsImage(file);
+}
+
+function fallbackReadFileAsImage(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error(`Không đọc được ảnh: ${file.name}`));
+    };
+    img.src = objectUrl;
+  });
+}
+
+function renderCompressedBlob(image, maxEdge, quality) {
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) {
+    throw new Error('Trình duyệt không hỗ trợ canvas.');
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('Nén ảnh thất bại.'));
+          return;
+        }
+        resolve(blob);
+      },
+      'image/jpeg',
+      quality
+    );
+  });
+}
+
+function getPresetConfig() {
+  // Fixed to balanced mode for stable field usage.
+  return { maxEdge: 1920, quality: 0.8, targetBytes: 1.4 * 1024 * 1024, minEdge: 1080, minQuality: 0.58 };
+}
+
+async function compressImage(file) {
+  const image = await readFileAsImage(file);
+  try {
+    const cfg = getPresetConfig();
+
+    let maxEdge = cfg.maxEdge;
+    let quality = cfg.quality;
+    let bestBlob = await renderCompressedBlob(image, maxEdge, quality);
+
+    for (let i = 0; i < 4; i += 1) {
+      if (bestBlob.size <= cfg.targetBytes) break;
+      if (i % 2 === 0) {
+        maxEdge = Math.max(cfg.minEdge, Math.round(maxEdge * 0.9));
+      } else {
+        quality = Math.max(cfg.minQuality, Number((quality - 0.06).toFixed(2)));
+      }
+
+      const candidate = await renderCompressedBlob(image, maxEdge, quality);
+      if (candidate.size < bestBlob.size) bestBlob = candidate;
+    }
+
+    return bestBlob;
+  } finally {
+    if (typeof image.close === 'function') image.close();
+  }
+}
+
+function blobToFile(blob, index) {
+  const dateStamp = getDateStamp();
+  const customer = toCompactCustomerName(els.customerName?.value || '');
+  const seq = String(index + 1).padStart(2, '0');
+  const filename = `${dateStamp}_${customer}_${seq}.jpg`;
+  return new File([blob], filename, {
+    type: 'image/jpeg',
+    lastModified: Date.now()
+  });
+}
+
+function splitIntoParts(items, mode) {
+  const parts = [];
+  let current = [];
+  let currentSize = 0;
+
+  const partSizeLimit = mode === 'stable' ? Math.min(SAFE_LIMIT_BYTES, STABLE_MAX_BYTES_PER_PART) : SAFE_LIMIT_BYTES;
+  const maxFiles = mode === 'stable' ? STABLE_MAX_FILES_PER_PART : Number.POSITIVE_INFINITY;
+
+  items.forEach((item) => {
+    if (item.size > partSizeLimit) {
+      if (current.length) {
+        parts.push({ items: current, size: currentSize });
+        current = [];
+        currentSize = 0;
+      }
+      parts.push({ items: [item], size: item.size, oversize: true });
+      return;
+    }
+
+    const willExceedSize = currentSize + item.size > partSizeLimit;
+    const willExceedCount = current.length >= maxFiles;
+
+    if ((willExceedSize || willExceedCount) && current.length) {
+      parts.push({ items: current, size: currentSize });
+      current = [item];
+      currentSize = item.size;
+      return;
+    }
+
+    current.push(item);
+    currentSize += item.size;
+  });
+
+  if (current.length) parts.push({ items: current, size: currentSize });
+  return parts;
+}
+
+function buildMailParts(parts) {
+  const totalParts = parts.length;
+  const form = collectFormData();
+
+  return parts.map((part, partIndex) => {
+    const indexLabel = `${partIndex + 1}/${totalParts}`;
+    const subject = `[Thẩm định] ${form.caseCode} - ${form.customerName || 'Khach hang'} - P${indexLabel} - CBTD: ${
+      form.officerName || 'CBTD'
+    }`;
+
+    const body = [
+      `Mã khách hàng: ${form.caseCode}`,
+      '',
+      `Khách hàng: ${form.customerName || ''}`,
+      `Địa chỉ khách hàng: ${form.customerAddress || ''}`,
+      `Địa chỉ TSĐB: ${form.assetAddress || ''}`,
+      `Link map: ${form.mapsLink || ''}`,
+      `Ngày thẩm định: ${formatDateForDisplay(form.assessmentDate) || ''}`,
+      '',
+      `CBTD: ${form.officerName || ''}`,
+      '',
+      `Phần: ${indexLabel}`,
+      `Số ảnh: ${part.items.length}`,
+      '',
+      `Thông tin GCN QSDĐ: ${form.notes || ''}`,
+      `Ghi chú: ${form.landNotes || ''}`
+    ].join('\n');
+
+    return {
+      index: partIndex + 1,
+      totalParts,
+      size: part.size,
+      files: part.items.map((item) => item.file),
+      subject,
+      body,
+      oversize: Boolean(part.oversize)
+    };
+  });
+}
+
+function getTotalCompressedBytes() {
+  return state.compressedFiles.reduce((sum, file) => sum + file.size, 0);
+}
+
+function chooseAutoMode(totalBytes) {
+  if (state.deviceShareLimited) return 'stable';
+  if (totalBytes >= NEAR_LIMIT_BYTES) return 'stable';
+  return 'compact';
+}
+
+function rebuildPreparedParts() {
+  const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
+  const totalBytes = getTotalCompressedBytes();
+  state.autoMode = chooseAutoMode(totalBytes);
+  state.parts = buildMailParts(splitIntoParts(payload, state.autoMode));
+  renderPreview();
+  updateSummary();
+  renderParts();
+}
+
+function updateSummary() {
+  const originalBytes = state.originalFiles.reduce((sum, file) => sum + file.size, 0);
+  const compressedBytes = getTotalCompressedBytes();
+
+  els.originalCount.textContent = String(state.originalFiles.length);
+  els.originalSize.textContent = formatBytes(originalBytes);
+  if (els.compressedSize) els.compressedSize.textContent = formatBytes(compressedBytes);
+  if (els.partCount) els.partCount.textContent = String(state.parts.length);
+
+  if (!els.limitStatus) {
+    setWarning('');
+    return;
+  }
+
+  if (!state.compressedFiles.length) {
+    els.limitStatus.textContent = 'Chưa có ảnh';
+    setWarning('');
+    return;
+  }
+
+  if (compressedBytes > SAFE_LIMIT_BYTES) {
+    els.limitStatus.textContent = `Vượt ngưỡng, đã chia ${state.parts.length} phần`;
+    setWarning('Dung lượng vượt ngưỡng gửi an toàn. Hãy xóa bớt ảnh rồi thử lại.');
+    return;
+  }
+
+  if (state.autoMode === 'stable' && state.parts.length > 1) {
+    els.limitStatus.textContent = `Đã chia ${state.parts.length} phần (ổn định)`;
+    if (compressedBytes >= NEAR_LIMIT_BYTES) {
+      setWarning('Gần ngưỡng gửi an toàn, hệ thống tự tách nhỏ để gửi dễ hơn.');
+    } else {
+      setWarning('Thiết bị giới hạn chia sẻ nhiều ảnh một lần, hệ thống đã tách nhỏ để mở mail ổn định hơn.');
+    }
+    return;
+  }
+
+  els.limitStatus.textContent = state.parts.length > 1 ? `Đã chia ${state.parts.length} phần` : 'Đã sẵn sàng gửi 1 phần';
+  setWarning('');
+}
+
+function makePreviewItem(file, index) {
+  const wrapper = document.createElement('article');
+  wrapper.className = 'preview-item';
+
+  const media = document.createElement('div');
+  media.className = 'preview-media';
+
+  const img = document.createElement('img');
+  img.alt = file.name;
+  img.loading = 'lazy';
+  const previewUrl = URL.createObjectURL(file);
+  state.previewUrls.push(previewUrl);
+  img.src = previewUrl;
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.className = 'preview-delete';
+  deleteBtn.textContent = 'Xóa';
+  deleteBtn.addEventListener('click', () => removeImageAt(index));
+
+  media.appendChild(img);
+  media.appendChild(deleteBtn);
+
+  const meta = document.createElement('div');
+  meta.className = 'preview-meta';
+  meta.innerHTML = `<strong>${escapeHtml(shortenFileName(file.name))}</strong>`;
+
+  wrapper.appendChild(media);
+  wrapper.appendChild(meta);
+  return wrapper;
+}
+
+function renderPreview() {
+  state.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.previewUrls = [];
+  els.previewGrid.innerHTML = '';
+  state.compressedFiles.forEach((file, index) => {
+    els.previewGrid.appendChild(makePreviewItem(file, index));
+  });
+}
+
+function renderParts() {
+  els.partsList.innerHTML = '';
+
+  if (!state.parts.length) {
+    const empty = document.createElement('div');
+    empty.className = 'warning';
+    empty.textContent = 'Chưa có ảnh để chuẩn bị phần gửi.';
+    els.partsList.appendChild(empty);
+    return;
+  }
+
+  state.parts.forEach((part) => {
+    const card = template.content.firstElementChild.cloneNode(true);
+    const title = card.querySelector('.part-title');
+    const meta = card.querySelector('.part-meta');
+    const badge = card.querySelector('.part-badge');
+    const preview = card.querySelector('.part-preview');
+    const shareBtn = card.querySelector('.share-btn');
+    const copyBtn = card.querySelector('.copy-btn');
+
+    title.textContent = `Phần ${part.index}/${part.totalParts}`;
+    meta.textContent = `${part.files.length} ảnh • ${formatBytes(part.size)}`;
+    badge.textContent = part.oversize ? 'Cần kiểm tra' : 'Sẵn sàng';
+    preview.textContent = `${part.subject}\n\n${part.body}`;
+
+    shareBtn.addEventListener('click', () => sharePart(part));
+    copyBtn.addEventListener('click', () => copyPartText(part));
+
+    els.partsList.appendChild(card);
+  });
+}
+
+function removeImageAt(index) {
+  if (index < 0 || index >= state.compressedFiles.length) return;
+  state.compressedFiles.splice(index, 1);
+  if (index < state.originalFiles.length) state.originalFiles.splice(index, 1);
+  rebuildPreparedParts();
+  refreshImageHints();
+  setStatus(true, 'Đã xóa 1 ảnh', 'Đã cập nhật lại dung lượng và phần gửi.');
+}
+
+function canShareFiles(files) {
+  if (!navigator.share || !navigator.canShare) return false;
+  return navigator.canShare({ files });
+}
+
+function cloneFilesForShare(files) {
+  return files.map((file, idx) =>
+    new File([file], file.name || `photo_${idx + 1}.jpg`, {
+      type: file.type || 'image/jpeg',
+      lastModified: Date.now()
+    })
+  );
+}
+
+function forceSplitForDeviceShare() {
+  if (!state.compressedFiles.length) return false;
+  const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
+  const forcedParts = buildMailParts(splitIntoParts(payload, 'stable'));
+  if (forcedParts.length <= state.parts.length) return false;
+
+  state.deviceShareLimited = true;
+  state.autoMode = 'stable';
+  state.parts = forcedParts;
+  updateSummary();
+  renderParts();
+  setWarning('Thiết bị giới hạn số ảnh/lần chia sẻ. Hệ thống đã tự chia nhỏ để mở mail ổn định hơn.');
+  return true;
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const ok = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  return ok;
+}
+
+async function copyPartText(part) {
+  try {
+    await copyText(`${part.subject}\n\n${part.body}`);
+    setStatus(true, 'Đã sao chép nội dung mail', 'Bạn có thể dán vào ứng dụng mail nếu không chia sẻ file trực tiếp được.');
+  } catch (error) {
+    setStatus(true, 'Không sao chép được', error.message || 'Trình duyệt không cho phép sao chép.');
+  }
+}
+
+async function exportSummaryPdf() {
+  if (!state.compressedFiles.length) {
+    setStatus(true, 'Chưa có ảnh để xuất PDF', 'Vui lòng chọn ảnh trước khi xuất file PDF.');
+    return;
+  }
+
+  const form = collectFormData();
+  if (!window.PdfSummary?.buildPdfSummaryHtml) {
+    setStatus(true, 'Thiếu module PDF', 'Không tìm thấy file pdf-summary.js.');
+    return;
+  }
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    setStatus(
+      true,
+      'Trinh duyet chan popup',
+      'Hay mo bang Chrome/Safari (ngoai Zalo/Messenger) va bat cho phep popup cho trang nay roi thu lai.'
+    );
+    return;
+  }
+
+  win.document.open();
+  win.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:16px">Dang chuan bi PDF...</body></html>');
+  win.document.close();
+
+  try {
+    setStatus(true, 'Đang chuẩn bị file PDF ...', 'Dang nhung anh va dung bo cuc PDF.');
+    const html = await window.PdfSummary.buildPdfSummaryHtml({
+      form,
+      files: state.compressedFiles,
+      totalBytes: getTotalCompressedBytes()
+    });
+
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+
+    const waitForImages = async (maxWaitMs = 12000) => {
+      const started = Date.now();
+      while (Date.now() - started < maxWaitMs) {
+        const images = Array.from(win.document.images || []);
+        const pending = images.filter((img) => !img.complete).length;
+        if (pending === 0) {
+          return { timedOut: false, pending: 0, total: images.length };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      const images = Array.from(win.document.images || []);
+      const pending = images.filter((img) => !img.complete).length;
+      return { timedOut: true, pending, total: images.length };
+    };
+
+    const imageState = await waitForImages();
+    win.print();
+
+    if (imageState.timedOut && imageState.pending > 0) {
+      setStatus(
+        true,
+        'Da mo che do in PDF (mot so anh tai cham)',
+        'Da cho ' + imageState.total + ' anh, con ' + imageState.pending + ' anh tai cham. Ban van co the luu PDF, hoac thu lai khi mang on dinh.'
+      );
+      return;
+    }
+
+    setStatus(true, 'Đã xuất PDF', 'Chọn "Save as PDF" để lưu file.');
+  } catch (error) {
+    try {
+      win.document.open();
+      win.document.write('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:16px">Xuat PDF that bai. Vui long quay lai trang va thu lai.</body></html>');
+      win.document.close();
+    } catch {
+      // ignore window write failure
+    }
+    setStatus(true, 'Xuat PDF that bai', error?.message || 'Khong tao duoc noi dung PDF.');
+  }
+}
+
+function buildShareConfirmMessage(part) {
+  return `Bạn sắp mở mail để gửi phần ${part.index}/${part.totalParts}\n${part.files.length} ảnh - ${formatBytes(part.size)}\n\nTiếp tục / Hủy`;
+}
+
+async function sharePart(part) {
+  const ok = window.confirm(buildShareConfirmMessage(part));
+  if (!ok) return;
+
+  const files = cloneFilesForShare(part.files);
+  const qrAttachment = await createQrAttachmentIfNeeded(part);
+  if (qrAttachment) files.push(qrAttachment);
+  const textOnlyData = {
+    title: part.subject,
+    text: `${part.subject}\n\n${part.body}`
+  };
+
+  const shareData = {
+    title: part.subject,
+    text: `${part.subject}\n\n${part.body}`,
+    files
+  };
+
+  if (!canShareFiles(files) && files.length > DEVICE_SAFE_FILES_PER_SHARE) {
+    const wasSplit = forceSplitForDeviceShare();
+    if (wasSplit) {
+      setStatus(
+        true,
+        'Thiết bị không mở mail với nhiều ảnh cùng lúc',
+        'Đã tự chia nhỏ phần gửi theo chế độ ổn định. Bạn bấm gửi lại từng phần.'
+      );
+      return;
+    }
+  }
+
+  if (canShareFiles(files)) {
+    try {
+      await navigator.share(shareData);
+      setStatus(true, `Đã mở chia sẻ phần ${part.index}/${part.totalParts}`, 'Chọn Gmail/Outlook/Mail rồi bấm gửi trong ứng dụng mail.');
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
+        return;
+      }
+      if (files.length > 1) {
+        const wasSplit = forceSplitForDeviceShare();
+        if (wasSplit) {
+          setStatus(
+            true,
+            'Thiết bị từ chối chia sẻ nhiều ảnh cùng lúc',
+            'Đã tự chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
+          );
+          return;
+        }
+      }
+    }
+  }
+
+  if (!canShareFiles(files) && files.length > 1) {
+    const wasSplit = forceSplitForDeviceShare();
+    if (wasSplit) {
+      setStatus(
+        true,
+        'Thiết bị giới hạn số file đính kèm',
+        'Đã chia nhỏ ảnh để gửi ổn định hơn. Bạn bấm gửi lại từng phần.'
+      );
+      return;
+    }
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share(textOnlyData);
+      setStatus(
+        true,
+        'Đã mở ứng dụng chia sẻ',
+        'Thiết bị không hỗ trợ đính kèm file trực tiếp từ web. Hãy đính kèm ảnh thủ công trong ứng dụng mail.'
+      );
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setStatus(true, 'Đã hủy chia sẻ', 'Bạn vừa đóng bảng chia sẻ.');
+        return;
+      }
+    }
+  }
+
+  await copyPartText(part);
+  setStatus(true, 'Thiết bị không chia sẻ file trực tiếp được', 'Đã sao chép nội dung, bạn có thể dán vào mail và đính kèm ảnh thủ công.');
+}
+
+function getCurrentPosition(options = { enableHighAccuracy: true, timeout: 22000, maximumAge: 30000 }) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('no-geo'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function getPositionBestEffort() {
+  const attempts = [
+    { enableHighAccuracy: false, timeout: 16000, maximumAge: 300000 },
+    { enableHighAccuracy: true, timeout: 26000, maximumAge: 60000 },
+    { enableHighAccuracy: false, timeout: 22000, maximumAge: 0 }
+  ];
+
+  let lastError;
+  for (let i = 0; i < attempts.length; i += 1) {
+    try {
+      return await getCurrentPosition(attempts[i]);
+    } catch (error) {
+      lastError = error;
+      if (i < attempts.length - 1) await wait(500);
+    }
+  }
+  throw lastError || new Error('geo-failed');
+}
+
+function buildGoogleMapsLink(lat, lng) {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+function normalizeMapLink(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  if (/^(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.com\/maps)/i.test(value)) return `https://${value}`;
+  return value;
+}
+
+function isShortMapUrl(raw) {
+  const value = String(raw || '').trim();
+  return /^(https?:\/\/)?(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(value);
+}
+
+function isValidLatLng(lat, lng) {
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  return Number.isFinite(latNum) && Number.isFinite(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180;
+}
+
+function tryParseLatLngFromLink(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return null;
+
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  })();
+
+  const commaDecimalMatch = decoded.match(/^(-?\d+),(\d+),\s+(-?\d+),(\d+)$/);
+  if (commaDecimalMatch) {
+    const lat = Number(`${commaDecimalMatch[1]}.${commaDecimalMatch[2]}`).toFixed(6);
+    const lng = Number(`${commaDecimalMatch[3]}.${commaDecimalMatch[4]}`).toFixed(6);
+    if (isValidLatLng(lat, lng)) return { lat, lng };
+  }
+
+  const patterns = [
+    /^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/,
+    /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /[?&]query=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = decoded.match(pattern);
+    if (!match) continue;
+    const lat = Number(match[1]).toFixed(6);
+    const lng = Number(match[2]).toFixed(6);
+    if (isValidLatLng(lat, lng)) return { lat, lng };
+  }
+
+  return null;
+}
+
+function setReferenceButtonsEnabled(enabled) {
+  if (els.btnOpenGuland) {
+    els.btnOpenGuland.disabled = !enabled;
+    els.btnOpenGuland.style.opacity = enabled ? '1' : '0.6';
+  }
+  const nhaEnabled = enabled && state.gpsLocated;
+  if (els.btnOpenNhaSieuTot) {
+    els.btnOpenNhaSieuTot.disabled = !nhaEnabled;
+    els.btnOpenNhaSieuTot.style.opacity = nhaEnabled ? '1' : '0.6';
+  }
+}
+
+function handleMapsLinkChange(opts = {}) {
+  const value = els.mapsLink?.value || '';
+  const parsed = tryParseLatLngFromLink(value);
+  state.gpsLocated = false;
+
+  if (parsed) {
+    state.lat = parsed.lat;
+    state.lng = parsed.lng;
+    setReferenceButtonsEnabled(true);
+    setMapStatus('Đã nhận diện tọa độ vị trí', 'success');
+
+    if (opts.normalize) {
+      const trimmed = value.trim();
+      const isRawDotCoords = /^-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?$/.test(trimmed);
+      const isRawCommaDecimalCoords = /^-?\d+,\d+,\s+-?\d+,\d+$/.test(trimmed);
+      if (isRawDotCoords || isRawCommaDecimalCoords) {
+        els.mapsLink.value = `https://www.google.com/maps?q=${parsed.lat},${parsed.lng}`;
+        saveDraftData();
+      }
+    }
+    return;
+  }
+
+  state.lat = null;
+  state.lng = null;
+  setReferenceButtonsEnabled(false);
+
+  if (isShortMapUrl(value)) {
+    setMapStatus('Link rút gọn không đọc được tọa độ. Hãy bấm Lấy vị trí tài sản hoặc dán link đầy đủ dạng google.com/maps?q=lat,lng.', 'error');
+    return;
+  }
+
+  if (!value.trim()) {
+    setMapStatus('');
+    return;
+  }
+
+  setMapStatus('Chưa nhận diện được tọa độ vị trí từ nội dung vừa nhập.', 'error');
+}
+
+function openGulandTab() {
+  if (!state.lat || !state.lng) {
+    window.alert('Vui lòng lấy vị trí tài sản trước!');
+    return;
+  }
+  const gulandUrl = `https://guland.vn/soi-quy-hoach?lat=${state.lat}&lng=${state.lng}&zoom=16`;
+  window.open(gulandUrl, '_blank');
+}
+
+function openNhaSieuTotTab() {
+  if (!state.lat || !state.lng) {
+    window.alert('Vui lòng lấy vị trí tài sản trước!');
+    return;
+  }
+  const nhaSieuTotUrl = `https://nhasieutot.com/?lat=${state.lat}&lng=${state.lng}&zoom=15`;
+  window.open(nhaSieuTotUrl, '_blank');
+}
+
+async function fetchQrBlobForMapLink(mapLink) {
+  const normalized = normalizeMapLink(mapLink);
+  if (!normalized) return null;
+  if (!window.QrLocal?.buildQrBlob) return null;
+
+  try {
+    return await window.QrLocal.buildQrBlob(normalized, { size: 320 });
+  } catch {
+    return null;
+  }
+}
+
+async function createQrAttachmentIfNeeded(part) {
+  if (!part || part.index !== 1) return null;
+  const mapLink = collectFormData().mapsLink;
+  const qrBlob = await fetchQrBlobForMapLink(mapLink);
+  if (!qrBlob) return null;
+  return new File([qrBlob], 'qr_vi_tri_tai_san.png', {
+    type: 'image/png',
+    lastModified: Date.now()
+  });
+}
+
+async function fillAssetLocation() {
+  if (state.isLocatingAsset) {
+    setStatus(true, 'Đang lấy vị trí tài sản...', 'Hệ thống đang định vị, vui lòng chờ.');
+    return;
+  }
+
+  state.isLocatingAsset = true;
+  if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = true;
+
+  try {
+    setMapStatus('Đang chờ cấp quyền vị trí và định vị GPS...');
+    setStatus(true, 'Đang lấy vị trí tài sản...', 'Vui lòng chờ vài giây để GPS định vị.');
+    const pos = await getPositionBestEffort();
+    const lat = Number(pos.coords.latitude).toFixed(6);
+    const lng = Number(pos.coords.longitude).toFixed(6);
+    state.lat = lat;
+    state.lng = lng;
+    state.gpsLocated = true;
+    if (els.btnOpenGuland) {
+      els.btnOpenGuland.disabled = false;
+      els.btnOpenGuland.style.opacity = '1';
+    }
+    if (els.btnOpenNhaSieuTot) {
+      els.btnOpenNhaSieuTot.disabled = false;
+      els.btnOpenNhaSieuTot.style.opacity = '1';
+    }
+    const url = buildGoogleMapsLink(lat, lng);
+    const hadValue = Boolean(els.mapsLink.value.trim());
+
+    els.mapsLink.value = url;
+    saveDraftData();
+    try {
+      await copyText(url);
+    } catch {
+      // copy may fail in some in-app browsers
+    }
+
+    setMapStatus(hadValue ? 'Đã cập nhật vị trí mới' : 'Đã lấy vị trí thành công', 'success');
+    setStatus(true, 'Đã cập nhật link map', 'Link vị trí đã được điền vào ô Google Maps.');
+  } catch (error) {
+    let msg = 'Không lấy được vị trí. Hãy mở bằng Chrome hoặc dán link Google Maps thủ công.';
+    if (error?.code === 1) {
+      msg = 'Bạn vừa từ chối quyền vị trí. Hãy cho phép quyền vị trí rồi bấm lại.';
+    } else if (error?.code === 2) {
+      msg = 'Không xác định được vị trí hiện tại. Hãy kiểm tra GPS/Internet rồi thử lại.';
+    } else if (error?.code === 3) {
+      msg = 'Lấy vị trí bị quá thời gian chờ. Hãy thử lại ở nơi sóng GPS tốt hơn.';
+    }
+    setMapStatus(msg, 'error');
+    setStatus(true, 'Không lấy được vị trí', msg);
+  } finally {
+    state.isLocatingAsset = false;
+    if (els.getAssetLocationBtn) els.getAssetLocationBtn.disabled = false;
+  }
+}
+
+function isMessengerInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|Messenger|Zalo/i.test(ua);
+}
+
+async function processSelectedFiles(fileList, append = false) {
+  if (!fileList.length) return;
+
+  setStatus(true, 'Đang xử lý ảnh...', 'Đang nén ảnh và chuẩn bị phần gửi.');
+  els.photoInput.disabled = true;
+  if (els.cameraInput) els.cameraInput.disabled = true;
+  if (els.addPhotosBtn) els.addPhotosBtn.disabled = true;
+
+  try {
+    const incoming = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+    if (!incoming.length) {
+      setStatus(true, 'Không có ảnh hợp lệ', 'Vui lòng chọn lại ảnh từ thư viện hoặc camera.');
+      return;
+    }
+
+    const compressed = [];
+    const offset = append ? state.compressedFiles.length : 0;
+    const concurrency = incoming.length <= 4 ? incoming.length : 3;
+
+    for (let start = 0; start < incoming.length; start += concurrency) {
+      const batch = incoming.slice(start, start + concurrency);
+      const end = Math.min(start + batch.length, incoming.length);
+      setStatus(true, 'Đang nén ảnh...', `Đang xử lý ${start + 1}-${end}/${incoming.length}`);
+
+      const batchOutput = await Promise.all(
+        batch.map(async (file, batchIndex) => {
+          const index = start + batchIndex;
+          const blob = await compressImage(file);
+          return blobToFile(blob, offset + index);
+        })
+      );
+
+      compressed.push(...batchOutput);
+    }
+
+    if (append) {
+      state.originalFiles = [...state.originalFiles, ...incoming];
+      state.compressedFiles = [...state.compressedFiles, ...compressed];
+    } else {
+      state.originalFiles = incoming.slice();
+      state.compressedFiles = compressed;
+    }
+    state.deviceShareLimited = false;
+
+    rebuildPreparedParts();
+    refreshImageHints();
+
+    const totalBytes = getTotalCompressedBytes();
+    if (totalBytes > SAFE_LIMIT_BYTES) {
+      setStatus(true, 'Ảnh vượt ngưỡng gửi an toàn', 'Bạn nên xóa bớt ảnh rồi thử lại.');
+    } else {
+      setStatus(true, 'Đã sẵn sàng gửi', state.parts.length === 1 ? 'Ảnh đã sẵn sàng gửi.' : `Đã chuẩn bị ${state.parts.length} phần để gửi.`);
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus(true, 'Xử lý ảnh thất bại', error.message || 'Có lỗi khi nén ảnh.');
+  } finally {
+    els.photoInput.disabled = false;
+    els.photoInput.value = '';
+    if (els.cameraInput) {
+      els.cameraInput.disabled = false;
+      els.cameraInput.value = '';
+    }
+    if (els.addPhotosBtn) els.addPhotosBtn.disabled = false;
+    state.addModeNextPick = false;
+  }
+}
+
+function resetFormDefaults() {
+  const now = new Date();
+  els.assessmentDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  els.notes.value = '';
+  if (els.landNotes) els.landNotes.value = '';
+  state.lat = null;
+  state.lng = null;
+  state.gpsLocated = false;
+  if (els.btnOpenGuland) {
+    els.btnOpenGuland.disabled = true;
+    els.btnOpenGuland.style.opacity = '0.6';
+  }
+  if (els.btnOpenNhaSieuTot) {
+    els.btnOpenNhaSieuTot.disabled = true;
+    els.btnOpenNhaSieuTot.style.opacity = '0.6';
+  }
+  setMapStatus('');
+}
+
+function clearImageData() {
+  state.originalFiles = [];
+  state.compressedFiles = [];
+  state.parts = [];
+  state.deviceShareLimited = false;
+  rebuildPreparedParts();
+  setImageHints([]);
+}
+
+function createNewCase() {
+  const shouldCreate = window.confirm('Bạn có chắc muốn tạo hồ sơ mới? Dữ liệu hiện tại sẽ bị xóa.');
+  if (!shouldCreate) return;
+
+  const keepOfficerName = els.officerName.value.trim();
+
+  document.getElementById('caseForm').reset();
+  resetFormDefaults();
+  els.officerName.value = keepOfficerName;
+  els.caseCode.value = '';
+  clearDraftData();
+  clearImageData();
+  setStatus(true, 'Đã tạo hồ sơ mới', 'Bạn có thể nhập khách hàng tiếp theo ngay.');
+}
+
+function initFormDefaults() {
+  resetFormDefaults();
+  els.caseCode.value = '';
+}
+
+function wireEvents() {
+  if (els.getAssetLocationBtn) {
+    els.getAssetLocationBtn.addEventListener('click', fillAssetLocation);
+  }
+  if (els.btnOpenGuland) {
+    els.btnOpenGuland.addEventListener('click', openGulandTab);
+  }
+  if (els.btnOpenNhaSieuTot) {
+    els.btnOpenNhaSieuTot.addEventListener('click', openNhaSieuTotTab);
+  }
+  if (els.mapsLink) {
+    els.mapsLink.addEventListener('input', () => handleMapsLinkChange());
+    els.mapsLink.addEventListener('change', () => handleMapsLinkChange({ normalize: true }));
+  }
+
+  if (els.pickLibraryBtn) {
+    els.pickLibraryBtn.addEventListener('click', () => {
+      state.addModeNextPick = state.compressedFiles.length > 0;
+      els.photoInput.click();
+    });
+  }
+
+  if (els.pickCameraBtn) {
+    els.pickCameraBtn.addEventListener('click', () => {
+      state.addModeNextPick = true;
+      els.cameraInput.click();
+    });
+  }
+
+  if (els.addPhotosBtn) {
+    els.addPhotosBtn.addEventListener('click', () => {
+      state.addModeNextPick = true;
+      els.photoInput.click();
+    });
+  }
+
+  if (els.newCaseBtn) {
+    els.newCaseBtn.addEventListener('click', createNewCase);
+  }
+
+  if (els.exportPdfBtn) {
+    els.exportPdfBtn.addEventListener('click', exportSummaryPdf);
+  }
+
+  [
+    els.caseCode,
+    els.customerName,
+    els.customerAddress,
+    els.assetAddress,
+    els.mapsLink,
+    els.assessmentDate,
+    els.notes,
+    els.landNotes,
+    els.officerName
+  ]
+    .filter(Boolean)
+    .forEach((input) => {
+    input.addEventListener('input', () => {
+      if (!state.compressedFiles.length) return;
+      const payload = state.compressedFiles.map((file) => ({ file, size: file.size }));
+      state.autoMode = chooseAutoMode(getTotalCompressedBytes());
+      state.parts = buildMailParts(splitIntoParts(payload, state.autoMode));
+      updateSummary();
+      renderParts();
+    });
+  });
+
+  DRAFT_FIELD_KEYS.map((key) => els[key])
+    .filter(Boolean)
+    .forEach((input) => {
+      input.addEventListener('input', saveDraftData);
+    });
+
+  els.photoInput.addEventListener('change', (event) => {
+    processSelectedFiles(event.target.files || [], state.addModeNextPick);
+  });
+
+  if (els.cameraInput) {
+    els.cameraInput.addEventListener('change', (event) => {
+      processSelectedFiles(event.target.files || [], true);
+    });
+  }
+}
+
+initFormDefaults();
+restoreDraftData();
+wireEvents();
+if (isMessengerInAppBrowser() && els.messengerBanner) {
+  els.messengerBanner.classList.remove('hidden');
+}
+updateSummary();
+renderPreview();
+renderParts();
